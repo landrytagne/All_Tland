@@ -1,0 +1,91 @@
+body {
+    font-family: Arial, sans-serif;
+   background-color: rgb(18, 8, 46);
+    font-family: "Press Start 2P", serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.quiz-container {
+    background: linear-gradient(rgb(9, 23, 148), rgb(2, 2, 37) 80%);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 4px 4px 10px 4px rgba(118, 118, 228, 0.8);
+    color: aqua;
+    font-family: "Poppins", sans-serif;
+    width: 90%;
+    max-width: 600px;
+    animation: Translation 8 s linear infinite;    
+}
+/*@keyframes Translation{
+    0% {
+        transform: translateY(0);
+    }
+    25% {
+        transform: translateY(200px);
+    }
+    50% {
+        transform: translateY(-200px);
+    }
+    75% {
+        transform: translateX(200px);
+    }
+    100% {
+        transform: translateX(-200px);
+    }
+} */
+
+h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    font-family: "Press Start 2P", serif;
+}
+.button-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+button {
+    background: #02a032;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 20px;
+    font-family: "Rubik Wet Paint", serif;
+
+    transition: all .3s ease-out;
+}
+button:nth-child(2){
+    background-color: rgb(202, 202, 7);
+}
+button:nth-child(3){
+    background-color: rgb(194, 8, 8);
+}
+
+button:hover {
+    background: #0056b3;
+    transform: translate(-5px);
+}
+#results {
+    margin-top: 20px;
+    font-size: 18px;
+}
+
+.success-message {
+    color: gold;
+    font-size: 24px;
+    margin-top: 20px;
+    animation: sparkle 2s infinite;
+}
+
+@keyframes sparkle {
+    0%, 100% { text-shadow: 0 0 5px gold, 0 0 10px orange; }
+    50% { text-shadow: 0 0 15px gold, 0 0 30px orange; }
+}

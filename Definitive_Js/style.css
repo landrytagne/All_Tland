@@ -1,0 +1,92 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100%;
+}
+button{
+    background-color: white;
+    font-weight: bold;
+    width: 30%;
+    color: maroon;
+    font-size: 1.2rem;
+    padding: 15px 20px;
+    border: none;
+    border-radius: 18px;
+}
+button:hover{
+    background-color: rgb(143, 255, 131);
+}
+button:active{
+    background-color: rgb(62, 189, 3);
+    color: white;
+}
+form{
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    padding: 20px;
+    gap: 1rem;
+    border-radius: 18px;
+    box-shadow: 2px 5px 5px rgba(0, 0, 0, 0.5);
+    width: 50%;
+    height: 40%;
+    background-color:  rgb(50, 66, 28);
+}
+form h3{
+    font-size: 2rem;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-weight: bold;
+    color: white;
+}
+form input{
+    padding: 10px 15px;
+    width: 80%;
+    border: none;
+    border-radius: 8px;
+    margin-top: 2rem;
+    color: maroon;
+    font-weight: bold;
+}
+form input::placeholder{
+    color: maroon;
+    font-weight: bold;
+}
+form input:active, form input:focus{
+    outline: none;
+    transform: translateY(-5px);
+}
+form button{
+    margin-top: 5rem;
+    cursor: pointer;
+}
+.message{
+    position: absolute;
+    margin-top: -18rem;
+    background-color: white;
+    color: maroon;
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 8px;
+    box-shadow: 2px 5px 5px rgba(0, 0, 0, 0.5);
+    display: none;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+.interclass{
+    position: absolute;
+    margin-top: -45rem;
+    background-color: rgb(0, 156, 21);
+    color: white;
+    font-weight: bold;
+    box-shadow:  5px 5px 10px black;
+    border: none;
+    border-radius: 18px;
+    padding: 20px;
+    display: none;
+}

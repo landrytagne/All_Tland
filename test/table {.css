@@ -1,0 +1,48 @@
+table {
+  font-size: 1.8rem; /* Augmente la taille du texte */
+  width: 100%; /* Le tableau occupe toute la largeur */
+  border-collapse: collapse;
+  margin: 20px auto; /* Centre le tableau verticalement */
+  background-color: #333; /* Fond du tableau */
+  border-radius: 10px; /* Coins arrondis */
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(255, 254, 254, 0.2); /* Ombre pour effet esthétique */
+}
+
+caption {
+  font-size: 2rem; /* Texte du titre plus grand */
+  font-weight: bold;
+  color: #fff; /* Couleur du titre */
+  margin-bottom: 15px;
+}
+
+th, td {
+  padding: 15px; /* Augmente la hauteur des cellules */
+  text-align: center;
+}
+
+th {
+  background-color: #007BFF; /* Fond des en-têtes */
+  color: #fff; /* Couleur du texte */
+  font-size: 1.7rem; /* Taille du texte des en-têtes */
+}
+
+tr:nth-child(even) {
+  background-color: #d2e5f5; /* Alternance de couleur pour les lignes */
+}
+
+tr:nth-child(odd) {
+  background-color: #f5f5f5; /* Couleur différente pour les lignes impaires */
+}
+
+td {
+  border: 2px solid #aeccee; /* Bordure des cellules */
+  color: #333; /* Couleur du texte des cellules */
+  font-size: 1rem;
+}
+
+tr:hover {
+  background-color: #f0f0f0; /* Couleur au survol */
+  transition: background 0.3s ease; /* Animation fluide pour le survol */
+}
+

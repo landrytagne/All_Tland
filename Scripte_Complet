@@ -1,0 +1,113 @@
+DROP TABLE IF EXISTS Admin ;
+CREATE TABLE Admin (idAdmin_Admin INT AUTO_INCREMENT NOT NULL,
+nom_Admin VARCHAR,
+prenom_Admin VARCHAR,
+email_Admin VARCHAR,
+motDePasse_Admin VARCHAR,
+PRIMARY KEY (idAdmin_Admin)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Utilisateur ;
+CREATE TABLE Utilisateur (IdUtilisateur_Utilisateur INT AUTO_INCREMENT NOT NULL,
+nom_Utilisateur VARCHAR,
+prenom_Utilisateur VARCHAR,
+email_Utilisateur VARCHAR,
+motDePasse_Utilisateur VARCHAR,
+idAdmin_Admin **NOT FOUND**,
+PRIMARY KEY (IdUtilisateur_Utilisateur)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Enseignant ;
+CREATE TABLE Enseignant (idEnseignant__Enseignant INT AUTO_INCREMENT NOT NULL,
+matierEnseigné_Enseignant VARCHAR,
+PRIMARY KEY (idEnseignant__Enseignant)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Matiere ;
+CREATE TABLE Matiere (idMatiere_Matiere INT AUTO_INCREMENT NOT NULL,
+nom_Matiere CHAR,
+Coefficient_Matiere INT,
+Matricule_Etudiant **NOT FOUND**,
+PRIMARY KEY (idMatiere_Matiere)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Classe ;
+CREATE TABLE Classe (Nom_Classe CHAR AUTO_INCREMENT NOT NULL,
+Capacité_Classe INT,
+annéeScolaire_Classe INT,
+PRIMARY KEY (Nom_Classe)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Eleve ;
+CREATE TABLE Eleve (idEleve_Eleve INT AUTO_INCREMENT NOT NULL,
+dateNaissance_Eleve INT,
+Coefficient_Eleve INT,
+statut_Eleve VARCHAR,
+Nom_Classe **NOT FOUND**,
+IdUtilisateur_Utilisateur **NOT FOUND**,
+Matricule_Etudiant **NOT FOUND**,
+PRIMARY KEY (idEleve_Eleve)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Parent ;
+CREATE TABLE Parent (idParent_Parent INT AUTO_INCREMENT NOT NULL,
+enfant_Parent CHAR,
+PRIMARY KEY (idParent_Parent)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Note ;
+CREATE TABLE Note (Matricule_Etudiant VARCHAR AUTO_INCREMENT NOT NULL,
+valeur_Note INT,
+dateSaisie_Note VARCHAR,
+statut_Note VARCHAR,
+idBulletin_Bulletin  **NOT FOUND**,
+PRIMARY KEY (Matricule_Etudiant)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS AnneeScolaire ;
+CREATE TABLE AnneeScolaire (idAnnée_AnneeScolaire INT AUTO_INCREMENT NOT NULL,
+fin_AnneeScolaire VARCHAR,
+statut_AnneeScolaire VARCHAR,
+debut_AnneeScolaire VARCHAR,
+Nom_Classe **NOT FOUND**,
+PRIMARY KEY (idAnnée_AnneeScolaire)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Bulletin_ ;
+CREATE TABLE Bulletin_ (idBulletin_Bulletin  INT AUTO_INCREMENT NOT NULL,
+moyenneGénérale_Bulletin  INT,
+Appréciation_Bulletin  CHAR,
+Mention_Bulletin  CHAR,
+PRIMARY KEY (idBulletin_Bulletin_)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS poceder ;
+CREATE TABLE poceder (idEleve_Eleve **NOT FOUND** AUTO_INCREMENT NOT NULL,
+idParent_Parent **NOT FOUND** NOT NULL,
+PRIMARY KEY (idEleve_Eleve,
+ idParent_Parent)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS habriter ;
+CREATE TABLE habriter (Nom_Classe **NOT FOUND** AUTO_INCREMENT NOT NULL,
+idMatiere_Matiere **NOT FOUND** NOT NULL,
+PRIMARY KEY (Nom_Classe,
+ idMatiere_Matiere)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Affecter ;
+CREATE TABLE Affecter (idEnseignant__Enseignant **NOT FOUND** AUTO_INCREMENT NOT NULL,
+Nom_Classe **NOT FOUND** NOT NULL,
+PRIMARY KEY (idEnseignant__Enseignant,
+ Nom_Classe)) ENGINE=InnoDB;
+
+DROP TABLE IF EXISTS Ensigner ;
+CREATE TABLE Ensigner (idEnseignant__Enseignant **NOT FOUND** AUTO_INCREMENT NOT NULL,
+idMatiere_Matiere **NOT FOUND** NOT NULL,
+PRIMARY KEY (idEnseignant__Enseignant,
+ idMatiere_Matiere)) ENGINE=InnoDB;
+
+ALTER TABLE Utilisateur ADD CONSTRAINT FK_Utilisateur_idAdmin_Admin FOREIGN KEY (idAdmin_Admin) REFERENCES Admin (idAdmin_Admin);
+
+ALTER TABLE Matiere ADD CONSTRAINT FK_Matiere_Matricule_Etudiant FOREIGN KEY (Matricule_Etudiant) REFERENCES Note (Matricule_Etudiant);
+ALTER TABLE Eleve ADD CONSTRAINT FK_Eleve_Nom_Classe FOREIGN KEY (Nom_Classe) REFERENCES Classe (Nom_Classe);
+ALTER TABLE Eleve ADD CONSTRAINT FK_Eleve_IdUtilisateur_Utilisateur FOREIGN KEY (IdUtilisateur_Utilisateur) REFERENCES Utilisateur (IdUtilisateur_Utilisateur);
+ALTER TABLE Eleve ADD CONSTRAINT FK_Eleve_Matricule_Etudiant FOREIGN KEY (Matricule_Etudiant) REFERENCES Note (Matricule_Etudiant);
+ALTER TABLE Note ADD CONSTRAINT FK_Note_idBulletin_Bulletin_ FOREIGN KEY (idBulletin_Bulletin_) REFERENCES Bulletin_ (idBulletin_Bulletin_);
+ALTER TABLE AnneeScolaire ADD CONSTRAINT FK_AnneeScolaire_Nom_Classe FOREIGN KEY (Nom_Classe) REFERENCES Classe (Nom_Classe);
+ALTER TABLE poceder ADD CONSTRAINT FK_poceder_idEleve_Eleve FOREIGN KEY (idEleve_Eleve) REFERENCES Eleve (idEleve_Eleve);
+ALTER TABLE poceder ADD CONSTRAINT FK_poceder_idParent_Parent FOREIGN KEY (idParent_Parent) REFERENCES Parent (idParent_Parent);
+ALTER TABLE habriter ADD CONSTRAINT FK_habriter_Nom_Classe FOREIGN KEY (Nom_Classe) REFERENCES Classe (Nom_Classe);
+ALTER TABLE habriter ADD CONSTRAINT FK_habriter_idMatiere_Matiere FOREIGN KEY (idMatiere_Matiere) REFERENCES Matiere (idMatiere_Matiere);
+ALTER TABLE Affecter ADD CONSTRAINT FK_Affecter_idEnseignant__Enseignant FOREIGN KEY (idEnseignant__Enseignant) REFERENCES Enseignant (idEnseignant__Enseignant);
+ALTER TABLE Affecter ADD CONSTRAINT FK_Affecter_Nom_Classe FOREIGN KEY (Nom_Classe) REFERENCES Classe (Nom_Classe);
+ALTER TABLE Ensigner ADD CONSTRAINT FK_Ensigner_idEnseignant__Enseignant FOREIGN KEY (idEnseignant__Enseignant) REFERENCES Enseignant (idEnseignant__Enseignant);
+ALTER TABLE Ensigner ADD CONSTRAINT FK_Ensigner_idMatiere_Matiere FOREIGN KEY (idMatiere_Matiere) REFERENCES Matiere (idMatiere_Matiere);

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Application Météo</title>
+        <link rel="stylesheet" href="style.css">
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <section class="container" id="container">
+            <div class="afficher" id="afficher">
+                <h3>
+                    Veuillez Entrer un pays
+                    <br>
+                    et nous vous donnerons sa situation
+                métérologique.
+                    <br>
+                    Merci bien 😊
+                </h3>
+            </div>
+            <div class="part1" id="part1">
+                <h3>Tuesday</h3>
+                <p>18 Jan 2025 😊</p>
+                <i class="bx bx-map"></i>
+                <p class="lan" id="pays"> paris, FR</p>
+                <i class="bx bx-sun" id="icon" style="color:white"></i>
+                <h1 id="correct">29°C</h1>
+                <h5 id="description">Sunny</h5>
+            </div>
+            <div class="part2" id="part2">
+                <h3>PRECIPITATION</h3>
+                <h3>HUMIDITY</h3>
+                <h3>WIND</h3>
+                <div class="section">
+                    <div class="icon1">
+                        <i class="bx bx-sun"></i>
+                        <p>Tue</p>
+                        <h3>29°C</h3>
+                    </div>
+                    <div class="icon2">
+                        <i class="bx bx-cloud"></i>
+                        <p>Wed</p>
+                        <h3>21°C</h3>
+                    </div>
+                    <div class="icon3">
+                        <i class="bx bx-cloud-snow"></i>
+                        <p>Thu</p>
+                        <h3>08°C</h3>
+                    </div>
+                    <div class="icon4">
+                        <i class="bx bx-cloud-rain"></i>
+                        <p>Fri</p>
+                        <h3>19°C</h3>
+                    </div>
+                </div>
+                <button id="select">
+                    <i class="bx bx-map"></i>
+                    Change location
+                </button>
+            </div>
+        </section>
+        <script src="script.js"></script>
+    </body>
+</html>

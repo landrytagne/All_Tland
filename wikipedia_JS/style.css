@@ -1,0 +1,211 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to right, #151616, #02393b);
+    color: white;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+.container{ 
+    margin: 40px;
+    padding: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 10rem;
+}
+.part1{
+    display: none;
+    font-family: "Poppins", ;
+    background-color: rgb(4, 180, 180);
+    width: 200px;
+    height: 280px;
+    padding: 20px 20px;
+    justify-content: center;
+    align-items: center;
+    border-radius: 20px;
+    background: url("Image collée (2).png");
+    background-size: cover;
+    transition: all 0.7s ease-in-out;
+}
+.part1:hover{
+  height: 300px; 
+  width: 250px;
+}
+.part1 h3{
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+.part1 p{
+    font-size: 0.8rem;
+    margin: 5px 0;
+}
+@keyframes CouleurTransition{
+  0%{
+    color : white;
+  }
+  25%{
+    color : orange;
+  }
+  50%{
+    color : red;
+  }
+  75%{
+    color : yellow;
+  }
+  100%{
+    color : green;
+  }
+}
+.part1 .bx-sun{
+    font-size: 2rem;
+    margin-top: 3.5rem;  
+}
+.bx-map{
+    font-size: 0.8rem;
+    position: relative;
+}
+.part1 h1{
+    font-size: 2.2rem;
+    font-weight: bold;
+    transition: all .7s ease-in-out;
+    animation: CouleurTransition 5S infinite;
+}
+.part2{
+    font-family: "Poppins", sans-serif ;
+    background-color: rgb(10, 10, 10);
+    width: 210px;
+    height: 280px;
+    padding: 10px 15px;
+    display: block;
+    justify-content: center;
+    align-items: center;
+    border-radius: 20px; 
+}
+.part2 h3{
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+.section {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 20px;
+  }
+  .icon1, .icon2, .icon3, .icon4 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    width:
+     100px;
+  }
+.icon2, .icon3, .icon4 i{
+    font-size: 1.5rem;
+  }
+  .icon1 p{
+    color: #02393b;
+  }
+  .icon1 h3{
+    color: #02393b;
+  }
+  .icon2, .icon3, .icon4{
+    background-color: transparent;
+    border: none;
+  }
+  .icon2:hover, .icon3:hover, .icon4:hover{
+    background-color: rgb(107, 107, 241);
+  }
+  .icon1 i {
+    font-size: 30px;
+    color: orange; 
+    margin-bottom: 10px;
+  }
+  p {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+  }
+
+  h3 {
+    margin: 5px 0 0;
+    font-size: 20px;
+    color: #fff;
+  }
+  button{
+    padding: 3px 3px;
+    width: 100%;
+    border: none;
+    border-radius: 25px;
+    background: linear-gradient(to right, rgb(38, 204, 204)10%, rgb(74, 74, 218));
+    color: white;
+    transition: all 8s ease-in;
+  }
+  button:hover{
+    transform: translateY(-8px);
+  }
+  .afficher{
+    position: relative;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    width: 400px;
+    height: 350px;
+    background:white; 
+    color: black;
+    border-radius: 20px;
+    box-shadow: 0px 4px  10px rgba(255, 254, 254, 0.5);
+    margin-top: -20rem;
+    margin-left: 2.5rem;
+  }
+  .afficher input{
+      width: 80%;
+      padding: 10px 8px;
+      border: 2px solid rgb(7, 7, 192);
+      color: rgb(0, 0, 0);
+      border-radius: 5px;
+      margin-left: 2rem;
+      margin-top: 2rem;
+      font-family: "Poppins", sans-serif;
+      background-color: transparent;
+  }
+  .afficher input::placeholder{
+    color: #151616;
+    font-weight: bold;
+  }
+  .afficher h3{
+    color: #151616;
+    font-size: 1.5rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+  .afficher p{
+    color: #02393b;
+    text-align: center;
+    margin-top: 0.8rem;
+    font-weight: bold;
+    margin-top: 3rem;
+  }
+
+.afficher button{
+  margin-top: 3rem;
+  width: 60%;
+  padding: 12px 10px;
+  margin-left: 5rem;
+  transition: all .7s ease-in;
+}
+.afficher button:hover{
+  transform: translateY(-5px);
+  background: blueviolet;
+  font-weight: bold;
+}

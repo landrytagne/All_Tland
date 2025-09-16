@@ -1,0 +1,74 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: aqua;
+    font-family: "Rubik Wet Paint", serif;
+    background: linear-gradient(rgb(9, 23, 148), rgb(2, 2, 37) 80%);
+    backdrop-filter: blur(20px);
+}
+
+.container{
+    position: relative;
+    width: 30rem;
+    height: 25rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    display: grid;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+    background: linear-gradient(rgb(2, 2, 68) 70%, rgb(2, 27, 252));
+    color: aqua; 
+}
+.container p{
+    font-size: 2rem;
+    font-weight: bold;
+}
+.container input{
+    padding: 18px 15px;
+    border: none;
+    border-radius: 15px;
+    background-color: transparent;
+    color: aliceblue;
+    font-weight: bold;
+    border-top: 2px solid blue;
+    border-left: 2px solid blue;
+    font-family: "Rubik Wet Paint", serif;
+    transition: all .7s ease-out;
+}
+.container input:active{
+    transform: translateY(-50px);
+}
+button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 15px;
+    color: aqua;
+    font-weight: bold;
+    font-size: 1.2rem;
+    background-color: rgb(2, 2, 68);
+    transition: all 0.3s ease-in-out;
+    cursor: pointer;
+    margin-top: 2rem;
+}
+
+button:hover {
+    transform: translateY(-8px);
+}
+.result{
+    margin-top: 20px;
+    font-size: 18px;
+}
