@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
@@ -23,4 +24,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     int revokeAllByUserId(Long userId);
 
     long countByUserIdAndRevokedFalse(Long userId);
+
+    /** Sessions actives d'un utilisateur, de la plus récente à la plus ancienne. */
+    List<RefreshToken> findByUserIdAndRevokedFalseOrderByCreatedAtDesc(Long userId);
 }

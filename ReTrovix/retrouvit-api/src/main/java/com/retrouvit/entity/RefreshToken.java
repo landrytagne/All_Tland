@@ -32,6 +32,14 @@ public class RefreshToken {
     @Builder.Default
     private Boolean revoked = false;
 
+    /** Appareil/navigateur d'origine (User-Agent tronqué) — métadonnée de session. */
+    @Column(name = "device_info", length = 255)
+    private String deviceInfo;
+
+    /** Adresse IP d'origine — métadonnée de session. */
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
