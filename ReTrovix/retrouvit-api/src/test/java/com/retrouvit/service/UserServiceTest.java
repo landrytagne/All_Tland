@@ -4,6 +4,8 @@ import com.retrouvit.dto.*;
 import com.retrouvit.entity.Role;
 import com.retrouvit.entity.User;
 import com.retrouvit.exception.ResourceNotFoundException;
+import com.retrouvit.repository.PasswordResetTokenRepository;
+import com.retrouvit.repository.RefreshTokenRepository;
 import com.retrouvit.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +41,12 @@ class UserServiceTest {
 
     @Mock
     private AuthenticationManager authenticationManager;
+
+    @Mock
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
 
     @InjectMocks
     private UserService userService;
