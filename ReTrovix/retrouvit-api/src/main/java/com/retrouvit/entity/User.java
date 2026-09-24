@@ -65,6 +65,21 @@ public class User {
     @Builder.Default
     private Boolean banned = false;
 
+    /** Compte activé — false entre l'inscription et la validation OTP (CDC §5.1). */
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean enabled = true;
+
+    /** L'email a été confirmé via OTP au moins une fois. */
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    private Boolean emailVerified = false;
+
+    /** 2FA par OTP email activée pour ce compte (défaut : true pour les comptes locaux, CDC §4.1). */
+    @Builder.Default
+    @Column(name = "two_factor_enabled", nullable = false)
+    private Boolean twoFactorEnabled = true;
+
     private String banReason;
 
     private LocalDateTime bannedAt;

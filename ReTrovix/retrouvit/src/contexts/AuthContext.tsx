@@ -52,6 +52,16 @@ interface AuthContextType {
   isAdmin: boolean;
   isBanned: boolean;
   login: (data: LoginRequest) => Promise<void>;
+  /** Connexion 2FA : établit la session à partir des tokens déjà reçus après vérification OTP. */
+  loginWithTokens: (response: {
+    token: string;
+    refreshToken: string;
+    expiresIn?: number;
+    email?: string;
+    role?: string;
+    id?: number;
+    name?: string;
+  }) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -123,6 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (data: LoginRequest) => {
     const response = await authApi.login(data);
+    if (!response.token || !response.refreshToken) {
+      throw new Error("Réponse de connexion invalide");
+    }
     setAuthToken(response.token);
     setRefreshToken(response.refreshToken);
     if (response.expiresIn) setTokenExpiry(response.expiresIn);
@@ -133,9 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("retrouvit_user_id", String(response.id));
       setUser({
         id: response.id,
-        name: response.name || response.email.split("@")[0],
-        email: response.email,
-        role: response.role,
+        name: response.name || (response.email ?? data.email).split("@")[0],
+        email: response.email ?? data.email,
+        role: response.role ?? "USER",
         createdAt: new Date().toISOString(),
       });
     } else {
@@ -151,6 +164,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, []);
+
+  /**
+   * Connexion 2FA (CDC §6.1) : le code OTP a déjà été validé côté backend
+   * et les tokens ont été reçus — on établit la session sans re-soumettre
+   * le mot de passe.
+   */
+  const loginWithTokens = useCallback(
+    async (response: {
+      token: string;
+      refreshToken: string;
+      expiresIn?: number;
+      email?: string;
+      role?: string;
+      id?: number;
+      name?: string;
+    }) => {
+      setAuthToken(response.token);
+      setRefreshToken(response.refreshToken);
+      if (response.expiresIn) setTokenExpiry(response.expiresIn);
+      setToken(response.token);
+
+      if (response.id) {
+        localStorage.setItem("retrouvit_user_id", String(response.id));
+      }
+      const payload = getTokenPayload();
+      if (payload) {
+        setUser({
+          id: response.id ?? Number(localStorage.getItem("retrouvit_user_id")) ?? 0,
+          name: response.name ?? payload.email.split("@")[0],
+          email: response.email ?? payload.email,
+          role: response.role ?? payload.role,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    },
+    []
+  );
 
   const register = useCallback(async (data: RegisterRequest) => {
     const response = await authApi.register(data);
@@ -197,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: user?.role === "ADMIN",
     isBanned: user?.banned ?? false,
     login,
+    loginWithTokens,
     register,
     logout,
     refreshUser,

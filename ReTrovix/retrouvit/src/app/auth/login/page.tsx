@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
+import { authApi } from "@/lib/api";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -37,6 +38,12 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
+      const res = await authApi.login({ email, password });
+      if (res.otpRequired) {
+        // 2FA active (CDC §6.1) : rediriger vers la saisie du code
+        router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}&mode=login`);
+        return;
+      }
       await login({ email, password });
       setTimeout(() => {
         router.push("/feed");

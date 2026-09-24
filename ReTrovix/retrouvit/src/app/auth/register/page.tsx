@@ -56,8 +56,11 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     try {
-      await register({ name, email, password });
-      router.push("/onboarding");
+      // Inscription en 2 étapes avec 2FA (CDC §5.1) : le compte est créé
+      // inactif et un code d'activation est envoyé par email.
+      const { otpApi } = await import("@/lib/api-otp");
+      await otpApi.registerWithOtp({ name, email, password });
+      router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}&mode=register`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erreur d'inscription";
       if (message.includes("409") || message.includes("already exists") || message.includes("duplicate")) {

@@ -290,6 +290,58 @@ public class EmailService {
     }
 
     // ════════════════════════════════════════════════════════════
+    // OTP 2FA
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Envoie le code OTP à 6 chiffres (2FA — CDC §6.1).
+     * Synchrone : l'utilisateur attend la confirmation d'envoi.
+     */
+    public void sendOtpEmail(String to, String code, int ttlMinutes) {
+        try {
+            String html = buildOtpHtml(code, ttlMinutes);
+            sendHtmlEmail(to, "Votre code de vérification RetrouvIt : " + code, html);
+            log.info("OTP email sent to {}", to);
+        } catch (Exception e) {
+            log.error("Failed to send OTP email to {}: {}", to, e.getMessage());
+            throw new IllegalStateException("Impossible d'envoyer l'email de vérification — réessayez", e);
+        }
+    }
+
+    private String buildOtpHtml(String code, int ttlMinutes) {
+        return """
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"></head>
+            <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            <table width="100%%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+            <tr><td align="center">
+            <table width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.07);">
+                <tr><td style="background:#16a34a;padding:24px 32px;text-align:center;">
+                    <h1 style="color:#fff;margin:0;font-size:22px;">Votre code de vérification</h1>
+                </td></tr>
+                <tr><td style="padding:32px;text-align:center;">
+                    <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
+                        Utilisez ce code à 6 chiffres pour confirmer votre identité sur RetrouvIt.
+                    </p>
+                    <div style="font-size:36px;letter-spacing:12px;font-weight:700;color:#1e293b;background:#f1f5f9;border-radius:8px;padding:16px 0;margin:0 0 24px;">
+                        %s
+                    </div>
+                    <p style="color:#94a3b8;font-size:13px;margin:0 0 8px;">
+                        Ce code expire dans <strong>%d minutes</strong> et ne peut être utilisé qu'une seule fois.
+                    </p>
+                    <p style="color:#94a3b8;font-size:12px;margin:0;">
+                        Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+                    </p>
+                </td></tr>
+                <tr><td style="background:#f1f5f9;padding:16px 32px;text-align:center;">
+                    <p style="color:#94a3b8;margin:0;font-size:12px;">%s · Ne partagez jamais ce code.</p>
+                </td></tr>
+            </table></td></tr></table>
+            </body></html>
+            """.formatted(escapeHtml(code), ttlMinutes, appName);
+    }
+
+    // ════════════════════════════════════════════════════════════
     // Dispute emails
     // ════════════════════════════════════════════════════════════
 
