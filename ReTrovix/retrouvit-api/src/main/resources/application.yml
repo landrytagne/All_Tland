@@ -15,7 +15,26 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # Le schéma est géré par Flyway (db/migration/V*__*.sql).
+      # validate garantit la cohérence entités ↔ schéma sans le modifier.
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Bases existantes (créées via ddl-auto) : posent un baseline v1 au
+    # premier démarrage — V1 est ignoré, seules V2+ s'appliqueront.
+    baseline-on-migrate: true
+    baseline-version: 1
+    # Si une base existante (ddl-auto) ne correspond plus au schéma de
+    # référence, activer temporairement repair-on-migrate pour resynchroniser
+    # l'historique Flyway puis rebasculer à false.
+    repair-on-migrate: false
     show-sql: false
     properties:
       hibernate:
@@ -74,6 +93,7 @@ sentry:
 
 ---
 # ═══ Dev Profile (MailHog) ═══════════════════════════════════════
+# ═══ (Flyway actif aussi en dev — cf. spring.flyway ci-dessus) ═══
 spring:
   config:
     activate:
