@@ -19,4 +19,12 @@ public class AuthResponse {
     private Long expiresIn;     // access token TTL in seconds
     private String email;
     private String role;
+
+    // ─── 2FA (CDC §5.1) — renseignés uniquement quand un OTP est requis ───
+    /** true : un code a été envoyé, l'utilisateur doit le saisir avant d'obtenir les tokens. */
+    private Boolean otpRequired;
+    /** Email masqué pour l'affichage (j***e@gmail.com). */
+    private String maskedEmail;
+    /** Message utilisateur. */
+    private String message;
 }

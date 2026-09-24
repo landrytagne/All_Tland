@@ -12,11 +12,15 @@ export interface LoginRequest {
 export interface LoginResponse {
   id?: number;
   name?: string;
-  token: string;
-  refreshToken: string;
-  expiresIn: number;
-  email: string;
-  role: string;
+  token?: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  email?: string;
+  role?: string;
+  // ─── 2FA (CDC §5.1) — présents quand un OTP est requis ───
+  otpRequired?: boolean;
+  maskedEmail?: string | null;
+  message?: string;
 }
 
 export interface RegisterRequest {

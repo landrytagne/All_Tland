@@ -30,6 +30,7 @@ public class UserService {
     private final AuthenticationManager authenticationManager;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final OtpService otpService;
 
     public AuthResponse login(AuthRequest request) {
         authenticationManager.authenticate(
@@ -42,9 +43,10 @@ public class UserService {
         return buildAuthResponse(user, null, null);
     }
 
-    /**
-     * Variante du login prenant en charge les métadonnées de session
+    /** Variante du login prenant en charge les métadonnées de session
      * (User-Agent, IP) captées par le contrôleur — cahier des charges §5.1.
+     * Si la 2FA est activée pour le compte, un code OTP est envoyé et
+     * aucun token n'est émis tant que le code n'est pas vérifié (CDC §6.1).
      */
     public AuthResponse login(AuthRequest request, String userAgent, String ipAddress) {
         authenticationManager.authenticate(
@@ -54,7 +56,27 @@ public class UserService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            throw new IllegalArgumentException("Ce compte n'est pas activé — vérifiez votre email (code d'activation)");
+        }
+
+        if (Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
+            String masked = otpService.generateAndSendOtp(user.getEmail(), "LOGIN");
+            return AuthResponse.builder()
+                    .email(user.getEmail())
+                    .otpRequired(true)
+                    .maskedEmail(masked)
+                    .message("Code de vérification envoyé par email")
+                    .build();
+        }
+
         return buildAuthResponse(user, userAgent, ipAddress);
+    }
+
+    /** Émission des tokens après validation OTP (flux 2FA — contrôleur OtpController). */
+    @Transactional
+    public AuthResponse buildAuthResponseForVerifiedUser(User user) {
+        return buildAuthResponse(user, null, null);
     }
 
     private AuthResponse buildAuthResponse(User user, String userAgent, String ipAddress) {
