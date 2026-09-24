@@ -144,6 +144,10 @@ export interface MatchResponse {
   lostObject: LostObjectResponse;
   foundObject: FoundObjectResponse;
   matchScore: number;
+  /** Détail du score par critère (JSON string : text, geography, temporal, visual). */
+  scoreBreakdown?: string | null;
+  /** Badge « correspondance forte » (score ≥ seuil match_strong_score, CDC §7.2). */
+  strongMatch?: boolean;
   status: string;
   user: UserResponse;
   createdAt: string;

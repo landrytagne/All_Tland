@@ -31,6 +31,10 @@ public class Match {
     @Builder.Default
     private Integer matchScore = 0;
 
+    /** Détail du score par critère (texte, géo, temporel, visuel) — CDC §4.3. */
+    @Column(name = "score_breakdown", columnDefinition = "TEXT")
+    private String scoreBreakdown;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

@@ -29,7 +29,10 @@ public class FoundObjectController {
             Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
-        return ResponseEntity.status(HttpStatus.CREATED).body(foundObjectService.create(request, user.getId()));
+        FoundObjectResponse response = foundObjectService.create(request, user.getId());
+        // Recalcul du matching à la création (CDC §7.2) — sens found → lost
+        matchingEngine.matchForFoundObject(response.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
@@ -85,7 +88,10 @@ public class FoundObjectController {
             Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
-        return ResponseEntity.ok(foundObjectService.update(id, request, user.getId()));
+        FoundObjectResponse response = foundObjectService.update(id, request, user.getId());
+        // Modification significative (photo, description) → recalcul (CDC §7.2)
+        matchingEngine.matchForFoundObject(response.getId());
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")

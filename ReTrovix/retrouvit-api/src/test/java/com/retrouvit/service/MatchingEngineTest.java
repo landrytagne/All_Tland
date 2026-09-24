@@ -11,18 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("MatchingEngine — Tests unitaires")
+@DisplayName("MatchingEngine — Tests unitaires (CDC §7)")
 class MatchingEngineTest {
 
     @Mock
@@ -40,6 +41,12 @@ class MatchingEngineTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private PlatformSettingsService platformSettingsService;
+
+    @Spy
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
     @InjectMocks
     private MatchingEngine matchingEngine;
 
@@ -47,8 +54,6 @@ class MatchingEngineTest {
     private User user2;
     private LostObject lostPhone;
     private FoundObject foundPhone;
-    private LostObject lostKeys;
-    private FoundObject foundKeys;
 
     @BeforeEach
     void setUp() {
@@ -62,6 +67,8 @@ class MatchingEngineTest {
                 .role(Role.USER).trustScore(50).objectsFound(0).objectsLost(0)
                 .matches(0).verified(false).walletBalance(0L).build();
 
+        // Perte et découverte à 2 jours d'écart, même ville, descriptions proches
+        // (score attendu : texte 25/35 + géo 20/20 + temporel 15/15 = 86/100 sans photo)
         lostPhone = LostObject.builder()
                 .id(10L)
                 .title("iPhone 15 Pro Max perdu")
@@ -76,34 +83,10 @@ class MatchingEngineTest {
 
         foundPhone = FoundObject.builder()
                 .id(20L)
-                .title("iPhone trouvé au distributeur")
-                .description("iPhone trouvé près d'un distributeur UBA à Messa, Yaoundé. Écran allumé.")
+                .title("iPhone trouvé distributeur Bastos")
+                .description("iPhone trouvé près d'un distributeur à Bastos, Yaoundé. Téléphone noir avec coque.")
                 .category("Électronique")
-                .location("Messa")
-                .city("Yaoundé")
-                .dateFound(LocalDate.of(2025, 8, 19))
-                .status(ObjectStatus.ACTIVE)
-                .user(user2)
-                .build();
-
-        lostKeys = LostObject.builder()
-                .id(30L)
-                .title("Trousseau de clés perdu")
-                .description("Trousseau de clés perdu au Marché Central, Yaoundé. Porte-clés en cuir marron.")
-                .category("Clés")
-                .location("Centre-ville")
-                .city("Yaoundé")
-                .dateLost(LocalDate.of(2025, 8, 18))
-                .status(ObjectStatus.ACTIVE)
-                .user(user1)
-                .build();
-
-        foundKeys = FoundObject.builder()
-                .id(40L)
-                .title("Trousseau de clés trouvé")
-                .description("Trousseau de clés trouvé au Marché Central. Porte-clés en cuir.")
-                .category("Clés")
-                .location("Centre-ville")
+                .location("Bastos")
                 .city("Yaoundé")
                 .dateFound(LocalDate.of(2025, 8, 17))
                 .status(ObjectStatus.ACTIVE)
@@ -111,71 +94,113 @@ class MatchingEngineTest {
                 .build();
     }
 
+    private void stubSettings() {
+        when(platformSettingsService.getSettingAsInt(anyString())).thenReturn(0); // → fallback CDC (80/90)
+    }
+
+    // ─── SCORE CALCULATION ───────────────────────────────────────────
+
+    @Test
+    @DisplayName("calculateMatchScore — catégorie différente = score 0 (éliminatoire)")
+    void score_shouldBeZeroWhenCategoryDiffers() {
+        foundPhone.setCategory("Vêtements");
+        MatchingEngine.MatchResult result = matchingEngine.calculateMatchScore(lostPhone, foundPhone);
+        assertThat(result.score()).isZero();
+        assertThat(result.breakdownJson()).contains("\"category\":0");
+    }
+
+    @Test
+    @DisplayName("calculateMatchScore — même objet, sans photo : texte+géo+temporel renormalisés sur 100")
+    void score_noPhotos_renormalized() {
+        // Texte 25/35 (ratio 7/10) + Géo 20/20 + Temporel 15/15 → 86 ≥ seuil 80
+        MatchingEngine.MatchResult result = matchingEngine.calculateMatchScore(lostPhone, foundPhone);
+        assertThat(result.score()).isGreaterThanOrEqualTo(80); // seuil CDC par défaut
+        assertThat(result.breakdownJson()).contains("\"category\":1");
+        assertThat(result.breakdownJson()).contains("\"geography\":20");
+        assertThat(result.breakdownJson()).contains("\"temporal\":15");
+        assertThat(result.breakdownJson()).contains("\"maxRaw\":70"); // 35+20+15 sans photos
+    }
+
+    @Test
+    @DisplayName("calculateMatchScore — photo identique → 30/30 visuel, maxRaw passe à 100")
+    void score_identicalPhoto_fullVisualScore() {
+        lostPhone.setImage("uploads/photo-xyz.jpg");
+        foundPhone.setImage("uploads/photo-xyz.jpg"); // même fichier
+        MatchingEngine.MatchResult result = matchingEngine.calculateMatchScore(lostPhone, foundPhone);
+        assertThat(result.breakdownJson()).contains("\"visual\":30");
+        assertThat(result.breakdownJson()).contains("\"maxRaw\":100"); // 35+20+15+30
+        // 25 (texte) + 20 (géo) + 15 (temporel) + 30 (visuel) = 90
+        assertThat(result.score()).isEqualTo(90);
+    }
+
+    @Test
+    @DisplayName("temporalProximity — dégression par écart de jours (0-3, 4-7, 8-14, 15-30)")
+    void temporal_degression() {
+        foundPhone.setDateFound(LocalDate.of(2025, 8, 15)); // même jour → 15
+        assertThat(matchingEngine.temporalProximity(lostPhone, foundPhone)).isEqualTo(15);
+
+        foundPhone.setDateFound(LocalDate.of(2025, 8, 18)); // 3 jours → 15
+        assertThat(matchingEngine.temporalProximity(lostPhone, foundPhone)).isEqualTo(15);
+
+        foundPhone.setDateFound(LocalDate.of(2025, 8, 22)); // 7 jours → 10
+        assertThat(matchingEngine.temporalProximity(lostPhone, foundPhone)).isEqualTo(10);
+
+        foundPhone.setDateFound(LocalDate.of(2025, 8, 29)); // 14 jours → 6
+        assertThat(matchingEngine.temporalProximity(lostPhone, foundPhone)).isEqualTo(6);
+
+        foundPhone.setDateFound(LocalDate.of(2025, 10, 20)); // > 30 jours → 0
+        assertThat(matchingEngine.temporalProximity(lostPhone, foundPhone)).isZero();
+    }
+
     // ─── RUN MATCHING ────────────────────────────────────────────────
 
     @Test
-    @DisplayName("runMatching — devrait créer un match si score ≥ 60 (même catégorie + même ville)")
+    @DisplayName("runMatching — crée un match si score ≥ 80 (seuil CDC, paramétrable)")
     void runMatching_shouldCreateMatchWhenScoreHighEnough() {
+        stubSettings();
         when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
                 .thenReturn(List.of(lostPhone));
         when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
                 .thenReturn(List.of(foundPhone));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(Collections.emptyList());
+        when(matchRepository.existsByLostObjectIdAndFoundObjectId(10L, 20L)).thenReturn(false);
 
         matchingEngine.runMatching();
 
         verify(matchRepository).save(argThat(match ->
-                match.getMatchScore() >= 60 &&
-                match.getLostObject().getTitle().contains("iPhone") &&
-                match.getFoundObject().getTitle().contains("iPhone")
+                match.getMatchScore() >= 80 &&
+                match.getScoreBreakdown() != null &&
+                match.getScoreBreakdown().contains("category")
         ));
         verify(notificationService).createMatchNotification(
                 eq(1L), any(), anyInt(), anyString(), anyString()
         );
-        verify(userRepository).save(argThat(u -> u.getMatches() == 1));
     }
 
     @Test
-    @DisplayName("runMatching — ne devrait pas créer de match si score < 60")
-    void runMatching_shouldNotCreateMatchWhenScoreTooLow() {
-        // Objets très différents → score faible
-        LostObject lostCat = LostObject.builder()
-                .id(50L).title("Chat persan perdu").description("Chat gris")
-                .category("Animaux").location("Nlongkak").city("Yaoundé")
-                .dateLost(LocalDate.now()).status(ObjectStatus.ACTIVE).user(user1).build();
-
-        FoundObject foundBag = FoundObject.builder()
-                .id(60L).title("Sac à main Hermès trouvé").description("Sac beige")
-                .category("Sacs & Bagages").location("Carrefour Warda").city("Douala")
-                .dateFound(LocalDate.now()).status(ObjectStatus.ACTIVE).user(user2).build();
-
-        when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(lostCat));
-        when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(foundBag));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(Collections.emptyList());
-
-        matchingEngine.runMatching();
-
-        verify(matchRepository, never()).save(any());
-        verify(notificationService, never()).createMatchNotification(anyLong(), anyLong(), anyInt(), anyString(), anyString());
-    }
-
-    @Test
-    @DisplayName("runMatching — ne devrait pas dupliquer un match existant")
-    void runMatching_shouldNotDuplicateExistingMatch() {
-        Match existingMatch = Match.builder()
-                .id(1L).lostObject(lostPhone).foundObject(foundPhone)
-                .matchScore(80).user(user1).status(MatchStatus.PENDING).build();
-
+    @DisplayName("runMatching — seuil paramétrable via PlatformSettings (match_min_score)")
+    void runMatching_thresholdFromSettings() {
+        when(platformSettingsService.getSettingAsInt("match_min_score")).thenReturn(95);
         when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
                 .thenReturn(List.of(lostPhone));
         when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
                 .thenReturn(List.of(foundPhone));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(List.of(existingMatch));
+        when(matchRepository.existsByLostObjectIdAndFoundObjectId(10L, 20L)).thenReturn(false);
+
+        matchingEngine.runMatching();
+
+        // Score attendu < 95 → pas de match
+        verify(matchRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("runMatching — ne duplique pas un match existant")
+    void runMatching_shouldNotDuplicateExistingMatch() {
+        // existsMatch court-circuite avant tout calcul — aucun stub de settings nécessaire
+        when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
+                .thenReturn(List.of(lostPhone));
+        when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
+                .thenReturn(List.of(foundPhone));
+        when(matchRepository.existsByLostObjectIdAndFoundObjectId(10L, 20L)).thenReturn(true);
 
         matchingEngine.runMatching();
 
@@ -183,29 +208,10 @@ class MatchingEngineTest {
     }
 
     @Test
-    @DisplayName("runMatching — devrait créer plusieurs matches si plusieurs paires correspondent")
-    void runMatching_shouldCreateMultipleMatches() {
-        when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(lostPhone, lostKeys));
-        when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(foundPhone, foundKeys));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(Collections.emptyList());
-
-        matchingEngine.runMatching();
-
-        // iPhone perdu ↔ iPhone trouvé = bon match (même catégorie + même ville)
-        // Clés perdues ↔ Clés trouvées = bon match (même catégorie)
-        verify(matchRepository, atLeast(2)).save(any());
-    }
-
-    @Test
-    @DisplayName("runMatching — devrait gérer une liste vide d'objets")
+    @DisplayName("runMatching — gère une liste vide d'objets")
     void runMatching_shouldHandleEmptyLists() {
         when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
                 .thenReturn(Collections.emptyList());
-        when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(foundPhone));
 
         matchingEngine.runMatching();
 
@@ -215,76 +221,44 @@ class MatchingEngineTest {
     // ─── MATCH FOR OBJECT ────────────────────────────────────────────
 
     @Test
-    @DisplayName("matchForObject — devrait trouver un match pour un objet spécifique")
-    void matchForObject_shouldFindMatch() {
-        when(lostObjectRepository.findById(10L)).thenReturn(java.util.Optional.of(lostPhone));
-        when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(foundPhone));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(Collections.emptyList());
-
-        matchingEngine.matchForObject(10L);
-
-        verify(matchRepository).save(argThat(match ->
-                match.getMatchScore() >= 60
-        ));
-        verify(notificationService).createMatchNotification(
-                eq(1L), any(), anyInt(), anyString(), anyString()
-        );
-    }
-
-    @Test
-    @DisplayName("matchForObject — ne devrait rien faire si l'objet n'existe pas")
+    @DisplayName("matchForObject — objet inexistant : aucun calcul")
     void matchForObject_shouldDoNothingWhenNotFound() {
         when(lostObjectRepository.findById(999L)).thenReturn(java.util.Optional.empty());
 
         matchingEngine.matchForObject(999L);
 
-        verify(foundObjectRepository, never()).findByStatusOrderByCreatedAtDesc(any());
         verify(matchRepository, never()).save(any());
     }
 
-    // ─── SCORE CALCULATION (via runMatching behavior) ────────────────
-
     @Test
-    @DisplayName("runMatching — score élevé pour catégorie + ville identiques avec mots communs")
-    void runMatching_highScoreForIdenticalCategoryAndCity() {
+    @DisplayName("matchForFoundObject — recalcule dans le sens found → lost")
+    void matchForFoundObject_shouldCreateMatch() {
+        stubSettings();
+        when(foundObjectRepository.findById(20L)).thenReturn(java.util.Optional.of(foundPhone));
         when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
                 .thenReturn(List.of(lostPhone));
-        when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(foundPhone));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(Collections.emptyList());
+        when(matchRepository.existsByLostObjectIdAndFoundObjectId(10L, 20L)).thenReturn(false);
 
-        matchingEngine.runMatching();
+        int created = matchingEngine.matchForFoundObject(20L);
 
-        // Category=Électronique (40) + City=Yaoundé (30) + words "iphone" "trouvé" etc. = high score
-        verify(matchRepository).save(argThat(match -> match.getMatchScore() >= 60));
+        assertThat(created).isEqualTo(1);
+        verify(matchRepository).save(argThat(match ->
+                match.getUser().getId().equals(1L) // le match appartient au chercheur
+        ));
     }
 
     @Test
-    @DisplayName("runMatching — score faible pour catégorie et ville différentes")
-    void runMatching_lowScoreForDifferentCategoryAndCity() {
-        LostObject lostCat = LostObject.builder()
-                .id(50L).title("Chat persan perdu").description("Chat gris et blanc")
-                .category("Animaux").location("Nlongkak").city("Yaoundé")
-                .dateLost(LocalDate.now()).status(ObjectStatus.ACTIVE).user(user1).build();
-
-        FoundObject foundBijou = FoundObject.builder()
-                .id(70L).title("Bague dorée trouvée").description("Bague en or au parc")
-                .category("Bijoux").location("Parc Monument").city("Bamenda")
-                .dateFound(LocalDate.now()).status(ObjectStatus.ACTIVE).user(user2).build();
-
-        when(lostObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(lostCat));
+    @DisplayName("matchForObject — catégorie différente : aucun match créé")
+    void matchForObject_differentCategory_noMatch() {
+        stubSettings();
+        foundPhone.setCategory("Vêtements");
+        when(lostObjectRepository.findById(10L)).thenReturn(java.util.Optional.of(lostPhone));
         when(foundObjectRepository.findByStatusOrderByCreatedAtDesc(ObjectStatus.ACTIVE))
-                .thenReturn(List.of(foundBijou));
-        when(matchRepository.findByUserIdOrderByCreatedAtDesc(1L))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(List.of(foundPhone));
 
-        matchingEngine.runMatching();
+        int created = matchingEngine.matchForObject(10L);
 
-        // Animaux ≠ Bijoux (0) + Yaoundé ≠ Bamenda (5) + words ≠ (0) = 5 < 60
+        assertThat(created).isZero();
         verify(matchRepository, never()).save(any());
     }
 }
