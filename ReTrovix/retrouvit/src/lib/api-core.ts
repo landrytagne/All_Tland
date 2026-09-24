@@ -134,7 +134,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
   }
 
   // FormData (file uploads) must go directly to backend — Next.js rewrites can't proxy multipart
-  const baseUrl = isFormData ? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080") : API_BASE_URL;
+  // Use the current host so uploads work from any device on the network
+  const defaultApiUrl = typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8080`
+    : "http://localhost:8080";
+  const baseUrl = isFormData ? (process.env.NEXT_PUBLIC_API_URL || defaultApiUrl) : API_BASE_URL;
   const response = await fetch(`${baseUrl}${endpoint}`, {
     method, headers,
     body: isFormData ? body : body ? JSON.stringify(body) : undefined,
@@ -285,6 +289,15 @@ export const certificationApi = {
       body: { reason, notes },
     }),
 
+  suspendRequest: (id: number, reason: string, notes?: string) =>
+    apiRequest<CertificationResponse>(`/api/certification/admin/${id}/suspend`, {
+      method: "POST",
+      body: { reason, notes },
+    }),
+
   getStats: () =>
     apiRequest<Record<string, unknown>>("/api/certification/admin/stats"),
+
+  getPendingCount: () =>
+    apiRequest<{ count: number }>("/api/certification/admin/pending/count"),
 };

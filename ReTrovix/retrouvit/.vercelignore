@@ -1,0 +1,23 @@
+# Dependencies (reinstalled during build)
+node_modules
+
+# Build artifacts (rebuilt during deploy)
+.next
+
+# Dev cache
+.vercel
+
+# Scripts
+scripts
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files (use Vercel dashboard instead)
+.env*
+!.env.example

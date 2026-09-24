@@ -24,6 +24,7 @@ import {
   PackageCheck,
   AlertCircle,
   ShieldCheck,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "@/lib/i18n";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { certificationApi } from "@/lib/api-core";
 
 const navLinks = [
   { href: "/feed", label: "Fil d\u2019actualité" },
@@ -55,13 +57,16 @@ const navLinks = [
   { href: "/matching", label: "Correspondances" },
 ];
 
-const drawerLinks = [
+const drawerLinks = (
+  isAdmin: boolean
+) => [
   { section: "Navigation", items: [
     { href: "/feed", label: "Fil d\u2019actualité", icon: Home },
     { href: "/feed/lost", label: "Objets perdus", icon: Search },
     { href: "/feed/found", label: "Objets trouvés", icon: Package },
     { href: "/dashboard", label: "Tableau de bord", icon: TrendingUp },
     { href: "/matching", label: "Correspondances", icon: TrendingUp },
+    ...(isAdmin ? [{ href: "/admin", label: "Dashboard Admin", icon: LayoutDashboard }] : []),
   ]},
   { section: "Mon compte", items: [
     { href: "/messages", label: "Messagerie", icon: MessageCircle },
@@ -87,8 +92,18 @@ export function Navbar() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const { unreadCount, unreadMessageCount, totalBadgeCount, notifications, clearNotifications, refreshUnreadCount } = useNotifications();
+  const [pendingCertCount, setPendingCertCount] = React.useState(0);
   const displayName = user?.name || "Utilisateur";
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  // Fetch pending certification count for admins
+  React.useEffect(() => {
+    if (user?.role === "ADMIN") {
+      certificationApi.getPendingCount()
+        .then((data) => setPendingCertCount(data.count))
+        .catch(() => {});
+    }
+  }, [user?.role]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -140,7 +155,7 @@ export function Navbar() {
 
               {/* Navigation Links */}
               <ScrollArea className="flex-1 py-2">
-                {drawerLinks.map((group, gi) => (
+                {drawerLinks(user?.role === "ADMIN").map((group, gi) => (
                   <div key={group.section} className={cn(gi > 0 && "mt-2")}>
                     <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {group.section}
@@ -173,6 +188,11 @@ export function Navbar() {
                           {item.href === "/messages" && unreadMessageCount > 0 && (
                             <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-forest dark:bg-forest-light px-1.5 text-[10px] font-bold text-white animate-pulse">
                               {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                            </span>
+                          )}
+                          {item.href === "/admin" && pendingCertCount > 0 && (
+                            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-brand px-1.5 text-[10px] font-bold text-white animate-pulse">
+                              {pendingCertCount > 9 ? "9+" : pendingCertCount}
                             </span>
                           )}
                           {item.extra && (
@@ -233,6 +253,25 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
+          {user?.role === "ADMIN" && (
+            <Link
+              href="/admin"
+              className={cn(
+                "px-3 py-2 text-sm font-medium rounded-md transition-colors hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5",
+                pathname.startsWith("/admin")
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground"
+              )}
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              Admin
+              {pendingCertCount > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-brand px-1.5 text-[10px] font-bold text-white animate-pulse">
+                  {pendingCertCount > 99 ? "99+" : pendingCertCount}
+                </span>
+              )}
+            </Link>
+          )}
         </nav>
 
         {/* Right side */}

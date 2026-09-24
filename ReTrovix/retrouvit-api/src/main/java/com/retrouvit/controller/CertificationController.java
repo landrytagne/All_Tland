@@ -101,6 +101,19 @@ public class CertificationController {
         return ResponseEntity.ok(certificationService.approveRequest(id, admin.getId(), adminNotes));
     }
 
+    @PostMapping("/admin/{id}/suspend")
+    @Operation(summary = "Suspendre une demande de certification (admin)")
+    public ResponseEntity<CertificationResponseDTO> suspendRequest(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            Authentication authentication
+    ) {
+        User admin = (User) authentication.getPrincipal();
+        String reason = body.get("reason");
+        String adminNotes = body.get("notes");
+        return ResponseEntity.ok(certificationService.suspendRequest(id, admin.getId(), reason, adminNotes));
+    }
+
     @PostMapping("/admin/{id}/reject")
     @Operation(summary = "Refuser une demande de certification (admin)")
     public ResponseEntity<CertificationResponseDTO> rejectRequest(
@@ -112,6 +125,12 @@ public class CertificationController {
         String rejectionReason = body.get("reason");
         String adminNotes = body.get("notes");
         return ResponseEntity.ok(certificationService.rejectRequest(id, admin.getId(), rejectionReason, adminNotes));
+    }
+
+    @GetMapping("/admin/pending/count")
+    @Operation(summary = "Nombre de demandes en attente (admin)")
+    public ResponseEntity<Map<String, Long>> getPendingCount() {
+        return ResponseEntity.ok(Map.of("count", certificationService.getPendingCount()));
     }
 
     @GetMapping("/admin/stats")

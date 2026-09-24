@@ -1,0 +1,88 @@
+# ═══════════════════════════════════════════════════════════════
+# RetrouvIt — Backend Deployment
+# Builds Docker image and deploys via SSH or pushes to registry
+# ═══════════════════════════════════════════════════════════════
+
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'retrouvit-api/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy-backend.yml'
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: true
+
+jobs:
+  # ─── Option A: Deploy via SSH (VPS/Dedicated) ──────────────────
+  deploy-ssh:
+    name: Deploy to Server (SSH)
+    runs-on: ubuntu-latest
+    # Only runs if SSH secrets are configured
+    if: ${{ secrets.DEPLOY_HOST != '' }}
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/opt/retrouvit' }}
+            git pull origin main
+            docker compose build api
+            docker compose up -d api
+            docker compose exec api java -jar app.jar --spring.profiles.active=prod &
+            echo "✅ Backend deployed successfully"
+
+  # ─── Option B: Push Docker image to registry ──────────────────
+  docker-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    # Only runs if Docker Hub secrets are configured
+    if: ${{ secrets.DOCKER_USERNAME != '' }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/retrouvit-api
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./retrouvit-api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

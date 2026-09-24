@@ -1,9 +1,30 @@
 import type { NextConfig } from "next";
+import { networkInterfaces } from "os";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 
+// Dynamically detect all local network IPs so the app is accessible from any device on the LAN
+// Note: allowedDevOrigins expects hostnames/IPs, not full URLs
+function getLocalNetworkOrigins(): string[] {
+  const origins: string[] = [
+    "localhost",
+    "127.0.0.1",
+  ];
+  const nets = networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] ?? []) {
+      if (net.family === "IPv4" && !net.internal) {
+        origins.push(net.address);
+      }
+    }
+  }
+  return origins;
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Allow access from any device on the local network
+  allowedDevOrigins: getLocalNetworkOrigins(),
   images: {
     remotePatterns: [
       {

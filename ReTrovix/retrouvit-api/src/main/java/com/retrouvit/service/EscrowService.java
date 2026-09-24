@@ -1,14 +1,13 @@
 package com.retrouvit.service;
 
 import com.retrouvit.dto.EscrowResponse;
-import com.retrouvit.dto.FoundObjectResponse;
-import com.retrouvit.dto.LostObjectResponse;
 import com.retrouvit.dto.UserResponse;
 import com.retrouvit.entity.*;
 import com.retrouvit.exception.ResourceNotFoundException;
 import com.retrouvit.repository.EscrowRepository;
 import com.retrouvit.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +20,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EscrowService {
 
     private final EscrowRepository escrowRepository;
@@ -32,6 +32,9 @@ public class EscrowService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Créer un escrow (appelé par ReturnRequestService.acceptReward)
+     */
     @Transactional
     public EscrowResponse createEscrow(Long buyerId, Long sellerId, Long amount, String location) {
         User buyer = userRepository.findById(buyerId)
@@ -52,50 +55,150 @@ public class EscrowService {
         return toResponse(saved);
     }
 
+    /**
+     * Verrouiller l'escrow (collaboration active)
+     * Idempotent: ne fait rien si déjà verrouillé
+     */
+    @Transactional
+    public EscrowResponse lockEscrow(Long escrowId, Long userId) {
+        Escrow escrow = escrowRepository.findById(escrowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Escrow non trouvé"));
+
+        // Idempotence: déjà verrouillé
+        if (escrow.getStatus() == EscrowStatus.LOCKED) {
+            log.info("Escrow {} already locked, skipping", escrowId);
+            return toResponse(escrow);
+        }
+
+        // Vérifier que l'escrow est dans un état permettant le verrouillage
+        if (escrow.getStatus() != EscrowStatus.AWAITING_RETURN) {
+            throw new IllegalArgumentException(
+                    "L'escrow ne peut être verrouillé qu'en attente de retour (état actuel: " + escrow.getStatus() + ")");
+        }
+
+        escrow.setStatus(EscrowStatus.LOCKED);
+        escrow.setProgress(20);
+        Escrow saved = escrowRepository.save(escrow);
+
+        log.info("Escrow {} locked", escrowId);
+        return toResponse(saved);
+    }
+
+    /**
+     * Confirmer le retour (l'objet a été remis)
+     * Idempotent: ne fait rien si déjà confirmé
+     */
     @Transactional
     public EscrowResponse confirmReturn(Long escrowId, Long userId) {
         Escrow escrow = escrowRepository.findById(escrowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Escrow non trouvé"));
 
+        // Idempotence
+        if (escrow.getStatus() == EscrowStatus.RETURN_CONFIRMED
+                || escrow.getStatus() == EscrowStatus.RELEASED
+                || escrow.getStatus() == EscrowStatus.COMPLETED) {
+            log.info("Escrow {} return already confirmed or beyond, skipping", escrowId);
+            return toResponse(escrow);
+        }
+
+        if (escrow.getStatus() != EscrowStatus.LOCKED) {
+            throw new IllegalArgumentException(
+                    "Le retour ne peut être confirmé qu'en escrow verrouillé (état actuel: " + escrow.getStatus() + ")");
+        }
+
         escrow.setStatus(EscrowStatus.RETURN_CONFIRMED);
-        escrow.setProgress(60);
+        escrow.setProgress(80);
         Escrow saved = escrowRepository.save(escrow);
+
+        log.info("Escrow {} return confirmed", escrowId);
         return toResponse(saved);
     }
 
+    /**
+     * Libérer l'escrow au trouveur
+     * Protection contre double release: vérifie l'état avant de libérer
+     * Idempotent: ne fait rien si déjà libéré
+     */
     @Transactional
-    public EscrowResponse completeEscrow(Long escrowId, Long userId) {
+    public EscrowResponse releaseEscrow(Long escrowId, Long userId) {
         Escrow escrow = escrowRepository.findById(escrowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Escrow non trouvé"));
 
-        escrow.setStatus(EscrowStatus.COMPLETED);
+        // ═══ DOUBLE-RELEASE PROTECTION ═══
+        if (escrow.getStatus() == EscrowStatus.RELEASED
+                || escrow.getStatus() == EscrowStatus.COMPLETED) {
+            log.warn("DOUBLE-RELEASE BLOCKED: Escrow {} already released/completed. State: {}",
+                    escrowId, escrow.getStatus());
+            throw new IllegalStateException(
+                    "Ce paiement a déjà été libéré. Opération bloquée par sécurité.");
+        }
+
+        // ═══ DISPUTE PROTECTION ═══
+        if (escrow.getStatus() == EscrowStatus.DISPUTED) {
+            log.warn("RELEASE BLOCKED DURING DISPUTE: Escrow {} is disputed", escrowId);
+            throw new IllegalStateException(
+                    "Impossible de libérer un escrow en litige. Résolvez le litige d'abord.");
+        }
+
+        // Vérifier que le retour est confirmé
+        if (escrow.getStatus() != EscrowStatus.RETURN_CONFIRMED
+                && escrow.getStatus() != EscrowStatus.RELEASE_PENDING) {
+            throw new IllegalArgumentException(
+                    "Le retour doit être confirmé avant la libération (état actuel: " + escrow.getStatus() + ")");
+        }
+
+        escrow.setStatus(EscrowStatus.RELEASED);
         escrow.setProgress(100);
         escrow.setCompletedAt(LocalDateTime.now());
 
-        // Credit seller's wallet
+        // Créditer le wallet du trouveur
         User seller = escrow.getSeller();
         seller.setWalletBalance(seller.getWalletBalance() + escrow.getAmount());
         userRepository.save(seller);
 
         Escrow saved = escrowRepository.save(escrow);
+
+        log.info("Escrow {} released: {} XAF credited to seller {}",
+                escrowId, escrow.getAmount(), seller.getId());
         return toResponse(saved);
     }
 
+    /**
+     * Rembourser l'escrow au propriétaire
+     * Protection contre double refund
+     */
     @Transactional
     public EscrowResponse refundEscrow(Long escrowId, Long userId) {
         Escrow escrow = escrowRepository.findById(escrowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Escrow non trouvé"));
 
+        // ═══ DOUBLE-REFUND PROTECTION ═══
+        if (escrow.getStatus() == EscrowStatus.REFUNDED
+                || escrow.getStatus() == EscrowStatus.COMPLETED) {
+            log.warn("DOUBLE-REFUND BLOCKED: Escrow {} already refunded/completed", escrowId);
+            throw new IllegalStateException(
+                    "Ce paiement a déjà été remboursé.");
+        }
+
+        // Ne pas rembourser un escrow déjà libéré au trouveur
+        if (escrow.getStatus() == EscrowStatus.RELEASED) {
+            throw new IllegalStateException(
+                    "Impossible de rembourser un escrow déjà libéré au retrouveur.");
+        }
+
         escrow.setStatus(EscrowStatus.REFUNDED);
         escrow.setProgress(0);
         escrow.setCompletedAt(LocalDateTime.now());
 
-        // Credit buyer's wallet
+        // Créditer le wallet du propriétaire
         User buyer = escrow.getBuyer();
         buyer.setWalletBalance(buyer.getWalletBalance() + escrow.getAmount());
         userRepository.save(buyer);
 
         Escrow saved = escrowRepository.save(escrow);
+
+        log.info("Escrow {} refunded: {} XAF credited to buyer {}",
+                escrowId, escrow.getAmount(), buyer.getId());
         return toResponse(saved);
     }
 

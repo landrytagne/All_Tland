@@ -17,6 +17,8 @@ import {
   Users,
   Award,
   Ban,
+  Pause,
+  MessageSquare,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AuthGuard } from "@/components/auth-guard";
@@ -48,9 +50,10 @@ function AdminCertificationsContent() {
 
   // Dialog state
   const [selectedRequest, setSelectedRequest] = React.useState<CertificationResponse | null>(null);
-  const [actionType, setActionType] = React.useState<"approve" | "reject">("approve");
+  const [actionType, setActionType] = React.useState<"approve" | "reject" | "suspend">("approve");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState("");
+  const [suspendReason, setSuspendReason] = React.useState("");
   const [adminNotes, setAdminNotes] = React.useState("");
   const [processing, setProcessing] = React.useState(false);
 
@@ -113,6 +116,28 @@ function AdminCertificationsContent() {
     }
   };
 
+  const handleSuspend = async () => {
+    if (!selectedRequest || !suspendReason.trim()) return;
+    try {
+      setProcessing(true);
+      await certificationApi.suspendRequest(
+        selectedRequest.id,
+        suspendReason,
+        adminNotes || undefined
+      );
+      setDialogOpen(false);
+      setSelectedRequest(null);
+      setSuspendReason("");
+      setAdminNotes("");
+      await fetchData();
+    } catch (err: any) {
+      console.error("Suspend failed:", err);
+      alert(err.message || "Erreur lors de la suspension");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const openApproveDialog = (req: CertificationResponse) => {
     setSelectedRequest(req);
     setActionType("approve");
@@ -128,33 +153,52 @@ function AdminCertificationsContent() {
     setDialogOpen(true);
   };
 
+  const openSuspendDialog = (req: CertificationResponse) => {
+    setSelectedRequest(req);
+    setActionType("suspend");
+    setSuspendReason("");
+    setAdminNotes("");
+    setDialogOpen(true);
+  };
+
   const filteredRequests = requests.filter((req) => {
     if (activeTab === "pending") return req.status === "PENDING";
     if (activeTab === "approved") return req.status === "APPROVED";
     if (activeTab === "rejected") return req.status === "REJECTED";
+    if (activeTab === "suspended") return req.status === "SUSPENDED";
     return true;
   });
 
-  const statusConfig: Record<string, { label: string; variant: any; icon: any }> = {
+  const statusConfig: Record<string, { label: string; variant: any; icon: any; color: string }> = {
     PENDING: {
       label: t("certification.statusPending"),
       variant: "secondary",
       icon: Clock,
+      color: "text-yellow-600",
     },
     APPROVED: {
       label: t("certification.statusApproved"),
       variant: "default",
       icon: CheckCircle2,
+      color: "text-green-600",
     },
     REJECTED: {
       label: t("certification.statusRejected"),
       variant: "destructive",
       icon: XCircle,
+      color: "text-red-600",
+    },
+    SUSPENDED: {
+      label: t("certification.statusSuspended"),
+      variant: "outline",
+      icon: Pause,
+      color: "text-orange-600",
     },
     CANCELLED: {
       label: t("certification.statusCancelled"),
       variant: "outline",
       icon: Ban,
+      color: "text-gray-600",
     },
   };
 
@@ -174,14 +218,14 @@ function AdminCertificationsContent() {
           <h1 className="text-2xl font-bold">{t("certification.adminTitle")}</h1>
           <p className="text-muted-foreground">
             {locale === "fr"
-              ? "Examinez et approuvez les demandes de certification"
-              : "Review and approve certification requests"}
+              ? "Examinez et gérez les demandes de certification"
+              : "Review and manage certification requests"}
           </p>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <Card>
           <CardContent className="p-4 text-center">
             <Clock className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
@@ -205,6 +249,13 @@ function AdminCertificationsContent() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
+            <Pause className="h-6 w-6 text-orange-600 mx-auto mb-2" />
+            <p className="text-2xl font-bold">{stats.suspended || 0}</p>
+            <p className="text-xs text-muted-foreground">{t("certification.suspended")}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
             <BarChart3 className="h-6 w-6 text-blue-600 mx-auto mb-2" />
             <p className="text-2xl font-bold">{stats.approvalRate || 0}%</p>
             <p className="text-xs text-muted-foreground">{t("certification.approvalRate")}</p>
@@ -220,6 +271,9 @@ function AdminCertificationsContent() {
           </TabsTrigger>
           <TabsTrigger value="approved">{t("certification.approved")}</TabsTrigger>
           <TabsTrigger value="rejected">{t("certification.rejected")}</TabsTrigger>
+          <TabsTrigger value="suspended">
+            {t("certification.suspended")} ({stats.suspended || 0})
+          </TabsTrigger>
           <TabsTrigger value="all">{t("certification.allRequests")}</TabsTrigger>
         </TabsList>
 
@@ -319,6 +373,15 @@ function AdminCertificationsContent() {
                                 <ShieldX className="mr-1 h-3 w-3" />
                                 {t("certification.reject")}
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                                onClick={() => openSuspendDialog(req)}
+                              >
+                                <Pause className="mr-1 h-3 w-3" />
+                                {t("certification.suspend")}
+                              </Button>
                             </>
                           )}
                         </div>
@@ -337,15 +400,22 @@ function AdminCertificationsContent() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {actionType === "approve" ? (
+              {actionType === "approve" && (
                 <>
                   <ShieldCheck className="h-5 w-5 text-green-600" />
                   {t("certification.approve")}
                 </>
-              ) : (
+              )}
+              {actionType === "reject" && (
                 <>
                   <ShieldX className="h-5 w-5 text-red-600" />
                   {t("certification.reject")}
+                </>
+              )}
+              {actionType === "suspend" && (
+                <>
+                  <Pause className="h-5 w-5 text-orange-600" />
+                  {t("certification.suspend")}
                 </>
               )}
             </DialogTitle>
@@ -369,6 +439,20 @@ function AdminCertificationsContent() {
               </div>
             )}
 
+            {actionType === "suspend" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-orange-600">
+                  {t("certification.suspendReason")} *
+                </label>
+                <Textarea
+                  placeholder={t("certification.suspendReasonPlaceholder")}
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("certification.adminNotes")}</label>
               <Textarea
@@ -384,7 +468,7 @@ function AdminCertificationsContent() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               {t("common.cancel")}
             </Button>
-            {actionType === "approve" ? (
+            {actionType === "approve" && (
               <Button
                 className="bg-green-600 hover:bg-green-700"
                 onClick={handleApprove}
@@ -393,7 +477,8 @@ function AdminCertificationsContent() {
                 {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t("certification.approve")}
               </Button>
-            ) : (
+            )}
+            {actionType === "reject" && (
               <Button
                 variant="destructive"
                 onClick={handleReject}
@@ -401,6 +486,17 @@ function AdminCertificationsContent() {
               >
                 {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t("certification.reject")}
+              </Button>
+            )}
+            {actionType === "suspend" && (
+              <Button
+                variant="outline"
+                className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                onClick={handleSuspend}
+                disabled={processing || !suspendReason.trim()}
+              >
+                {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t("certification.suspend")}
               </Button>
             )}
           </DialogFooter>

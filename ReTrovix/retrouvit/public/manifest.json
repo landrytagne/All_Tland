@@ -1,0 +1,105 @@
+{
+  "name": "RetrouvIt — Retrouvez vos objets perdus",
+  "short_name": "RetrouvIt",
+  "description": "La plateforme camerounaise qui reconnecte les personnes qui ont perdu des objets avec celles qui les ont trouvés.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "fr",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-1024x1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/landing.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Page d'accueil RetrouvIt"
+    },
+    {
+      "src": "/screenshots/feed.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Fil d'objets perdus"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Publier un objet",
+      "short_name": "Publier",
+      "url": "/publish",
+      "icons": [{ "src": "/icons/shortcut-publish.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Fil d'objets",
+      "short_name": "Fil",
+      "url": "/feed",
+      "icons": [{ "src": "/icons/shortcut-feed.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Mon portefeuille",
+      "short_name": "Wallet",
+      "url": "/wallet",
+      "icons": [{ "src": "/icons/shortcut-wallet.png", "sizes": "96x96" }]
+    }
+  ]
+}

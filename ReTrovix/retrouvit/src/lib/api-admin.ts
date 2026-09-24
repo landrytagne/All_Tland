@@ -455,3 +455,147 @@ export const adminThresholdsApi = {
       method: "POST",
     }),
 };
+
+// ─── Categories API ────────────────────────────────────────────
+
+export interface CategoryResponse {
+  id: number;
+  name: string;
+  icon: string;
+  sortOrder: number;
+  enabled: boolean;
+  objectCount: number;
+  createdAt: string;
+}
+
+export const categoriesApi = {
+  getAll: () =>
+    apiRequest<CategoryResponse[]>("/api/categories"),
+
+  getEnabled: () =>
+    apiRequest<CategoryResponse[]>("/api/categories/enabled"),
+
+  getById: (id: number) =>
+    apiRequest<CategoryResponse>(`/api/categories/${id}`),
+
+  create: (data: { name: string; icon?: string }) =>
+    apiRequest<CategoryResponse>("/api/categories", {
+      method: "POST",
+      body: data,
+    }),
+
+  update: (id: number, data: { name?: string; icon?: string; enabled?: boolean }) =>
+    apiRequest<CategoryResponse>(`/api/categories/${id}`, {
+      method: "PUT",
+      body: data,
+    }),
+
+  delete: (id: number) =>
+    apiRequest<void>(`/api/categories/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// ─── Cities API ────────────────────────────────────────────────
+
+export interface CityResponse {
+  id: number;
+  name: string;
+  region: string;
+  enabled: boolean;
+  objectCount: number;
+  createdAt: string;
+}
+
+export const citiesApi = {
+  getAll: () =>
+    apiRequest<CityResponse[]>("/api/cities"),
+
+  getEnabled: () =>
+    apiRequest<CityResponse[]>("/api/cities/enabled"),
+
+  getById: (id: number) =>
+    apiRequest<CityResponse>(`/api/cities/${id}`),
+
+  create: (data: { name: string; region?: string }) =>
+    apiRequest<CityResponse>("/api/cities", {
+      method: "POST",
+      body: data,
+    }),
+
+  update: (id: number, data: { name?: string; region?: string; enabled?: boolean }) =>
+    apiRequest<CityResponse>(`/api/cities/${id}`, {
+      method: "PUT",
+      body: data,
+    }),
+
+  delete: (id: number) =>
+    apiRequest<void>(`/api/cities/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// ─── Platform Settings API ────────────────────────────────────
+
+export interface PlatformSettingsResponse {
+  id: number;
+  settingKey: string;
+  settingValue: string;
+  settingType: string;
+  description: string;
+  updatedAt: string;
+}
+
+export const platformSettingsApi = {
+  getAll: () =>
+    apiRequest<PlatformSettingsResponse[]>("/api/settings"),
+
+  getByKey: (key: string) =>
+    apiRequest<PlatformSettingsResponse>(`/api/settings/${key}`),
+
+  update: (key: string, value: string) =>
+    apiRequest<PlatformSettingsResponse>(`/api/settings/${key}`, {
+      method: "PUT",
+      body: { value },
+    }),
+
+  updateMultiple: (settings: Record<string, string>) =>
+    apiRequest<PlatformSettingsResponse[]>("/api/settings", {
+      method: "PUT",
+      body: settings,
+    }),
+
+  initializeDefaults: () =>
+    apiRequest<{ message: string }>("/api/settings/initialize", {
+      method: "POST",
+    }),
+};
+
+// ─── Admin Analytics API ───────────────────────────────────────
+
+export const adminAnalyticsApi = {
+  getStats: () =>
+    apiRequest<Record<string, unknown>>("/api/admin/analytics"),
+
+  getOverview: () =>
+    apiRequest<Record<string, unknown>>("/api/admin/analytics/overview"),
+};
+
+// ─── Admin Conversations API ───────────────────────────────────
+
+export interface AdminConversationResponse {
+  id: number;
+  participants: { id: number; name: string; avatar?: string }[];
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  status: string;
+}
+
+export const adminConversationsApi = {
+  getAll: () =>
+    apiRequest<AdminConversationResponse[]>("/api/admin/conversations"),
+
+  getStats: () =>
+    apiRequest<Record<string, number>>("/api/admin/conversations/stats"),
+};

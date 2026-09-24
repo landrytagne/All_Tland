@@ -24,6 +24,7 @@ import {
   Link as LinkIcon,
   BookOpen,
   Headphones,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,6 +41,7 @@ const sidebarItems = [
   { href: "/admin/users", label: "Utilisateurs", icon: Users },
   { href: "/admin/posts", label: "Publications", icon: FileText },
   { href: "/admin/reports", label: "Signalements", icon: AlertTriangle },
+  { href: "/admin/certifications", label: "Certifications", icon: ShieldCheck },
   { href: "/admin/complaints", label: "Réclamations", icon: Headphones },
   { href: "/admin/transactions", label: "Transactions", icon: CreditCard },
   { href: "/admin/messages", label: "Messages", icon: MessageCircle },

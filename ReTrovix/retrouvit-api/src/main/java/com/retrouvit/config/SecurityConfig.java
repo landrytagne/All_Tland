@@ -21,6 +21,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 
 @Configuration
@@ -138,12 +142,35 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
+
+        // Dynamically detect all local network IPs for LAN access
+        List<String> origins = new ArrayList<>(List.of(
                 "http://localhost:3000",
                 "http://localhost:3001",
-                "http://192.168.48.27:3000",
+                "http://localhost:8080",
                 "https://retrouvit.com"
         ));
+
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface ni = interfaces.nextElement();
+                if (ni.isLoopback() || !ni.isUp()) continue;
+                Enumeration<InetAddress> addresses = ni.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    if (addr.isLoopbackAddress() || !(addr instanceof java.net.Inet4Address)) continue;
+                    String ip = addr.getHostAddress();
+                    origins.add("http://" + ip + ":3000");
+                    origins.add("http://" + ip + ":3001");
+                    origins.add("http://" + ip + ":8080");
+                }
+            }
+        } catch (Exception e) {
+            // Fallback: CORS will still work for localhost
+        }
+
+        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

@@ -54,14 +54,14 @@ public class EscrowController {
         return ResponseEntity.ok(escrowService.confirmReturn(id, user.getId()));
     }
 
-    @PutMapping("/{id}/complete")
-    @Operation(summary = "Compléter l'escrow")
-    public ResponseEntity<EscrowResponse> completeEscrow(
+    @PutMapping("/{id}/release")
+    @Operation(summary = "Libérer l'escrow au retrouveur")
+    public ResponseEntity<EscrowResponse> releaseEscrow(
             @PathVariable Long id,
             Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
-        return ResponseEntity.ok(escrowService.completeEscrow(id, user.getId()));
+        return ResponseEntity.ok(escrowService.releaseEscrow(id, user.getId()));
     }
 
     @PutMapping("/{id}/refund")

@@ -56,6 +56,12 @@ function CertificationContent() {
   const [uploadingSelfie, setUploadingSelfie] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
 
+  // Drag-and-drop state
+  const [docDragging, setDocDragging] = React.useState(false);
+  const [selfieDragging, setSelfieDragging] = React.useState(false);
+  const docInputRef = React.useRef<HTMLInputElement>(null);
+  const selfieInputRef = React.useRef<HTMLInputElement>(null);
+
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
@@ -130,6 +136,41 @@ function CertificationContent() {
     } finally {
       setUploadingSelfie(false);
     }
+  };
+
+  // Generic file processor for drag-and-drop
+  const processFile = async (
+    file: File,
+    setter: (url: string) => void,
+    setUploading: (v: boolean) => void
+  ) => {
+    setUploading(true);
+    try {
+      const url = await uploadToServer(file);
+      if (url) setter(url);
+    } catch (err) {
+      console.error("Upload failed:", err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Document drag handlers
+  const handleDocDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDocDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file, setDocumentUrl, setUploadingDoc);
+  };
+
+  // Selfie drag handlers
+  const handleSelfieDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelfieDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file, setSelfieUrl, setUploadingSelfie);
   };
 
   const handleSubmitRequest = async () => {
@@ -411,7 +452,16 @@ function CertificationContent() {
             {/* Document upload */}
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("certification.uploadDocument")}</label>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer
+                  ${docDragging ? "border-primary bg-primary/5" : "hover:border-primary/50"}
+                  ${uploadingDoc ? "opacity-50 pointer-events-none" : ""}
+                `}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDocDragging(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDocDragging(false); }}
+                onDrop={handleDocDrop}
+                onClick={() => !documentUrl && !uploadingDoc && docInputRef.current?.click()}
+              >
                 {documentUrl ? (
                   <div className="space-y-2">
                     <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto" />
@@ -425,32 +475,40 @@ function CertificationContent() {
                 ) : (
                   <div className="space-y-2">
                     <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">{t("certification.uploadHint")}</p>
-                    <label className="cursor-pointer">
-                      <Button variant="outline" size="sm" disabled={uploadingDoc}>
-                        {uploadingDoc ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Upload className="mr-2 h-4 w-4" />
-                        )}
-                        {t("certification.uploadDocument")}
-                      </Button>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        onChange={handleUploadDocument}
-                      />
-                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      {docDragging
+                        ? (locale === "fr" ? "Déposez votre document ici" : "Drop your document here")
+                        : t("certification.uploadHint")
+                      }
+                    </p>
+                    {uploadingDoc && (
+                      <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                    )}
                   </div>
                 )}
               </div>
+              <input
+                ref={docInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={handleUploadDocument}
+              />
             </div>
 
             {/* Selfie upload (optional) */}
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("certification.uploadSelfie")}</label>
-              <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary/50 transition-colors">
+              <div
+                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer
+                  ${selfieDragging ? "border-primary bg-primary/5" : "hover:border-primary/50"}
+                  ${uploadingSelfie ? "opacity-50 pointer-events-none" : ""}
+                `}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setSelfieDragging(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setSelfieDragging(false); }}
+                onDrop={handleSelfieDrop}
+                onClick={() => !selfieUrl && !uploadingSelfie && selfieInputRef.current?.click()}
+              >
                 {selfieUrl ? (
                   <div className="space-y-2">
                     <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto" />
@@ -465,29 +523,26 @@ function CertificationContent() {
                   <div className="space-y-2">
                     <Camera className="h-6 w-6 text-muted-foreground mx-auto" />
                     <p className="text-xs text-muted-foreground">
-                      {locale === "fr"
-                        ? "Prenez un selfie en tenant votre document"
-                        : "Take a selfie holding your document"}
+                      {selfieDragging
+                        ? (locale === "fr" ? "Déposez votre selfie ici" : "Drop your selfie here")
+                        : (locale === "fr"
+                          ? "Prenez un selfie en tenant votre document"
+                          : "Take a selfie holding your document")
+                      }
                     </p>
-                    <label className="cursor-pointer">
-                      <Button variant="outline" size="sm" disabled={uploadingSelfie}>
-                        {uploadingSelfie ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Camera className="mr-2 h-4 w-4" />
-                        )}
-                        {t("certification.uploadSelfie")}
-                      </Button>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        onChange={handleUploadSelfie}
-                      />
-                    </label>
+                    {uploadingSelfie && (
+                      <Loader2 className="h-5 w-5 animate-spin text-primary mx-auto" />
+                    )}
                   </div>
                 )}
               </div>
+              <input
+                ref={selfieInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={handleUploadSelfie}
+              />
             </div>
 
             <Separator />

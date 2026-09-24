@@ -98,3 +98,15 @@ export type {
   RatingResponse,
   DisputeStats,
 } from "./api-returns";
+
+// Proof & Negotiation
+export {
+  proofsApi,
+  negotiationApi,
+} from "./api-proof";
+
+export type {
+  ProofSubmitRequest,
+  ProofResponse,
+  NegotiationOfferResponse,
+} from "./api-proof";

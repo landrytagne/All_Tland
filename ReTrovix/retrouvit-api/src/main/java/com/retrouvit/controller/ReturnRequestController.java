@@ -45,30 +45,36 @@ public class ReturnRequestController {
                 .body(returnRequestService.initiateReturn(finderId, loserId, lostObjectId, foundObjectId));
     }
 
-    // ─── Reward ──────────────────────────────────────────────
+    // ─── Payment ──────────────────────────────────────────────
 
-    @PostMapping("/{id}/propose-reward")
-    @Operation(summary = "Proposer une récompense (propriétaire)")
-    public ResponseEntity<ReturnRequestResponse> proposeReward(
+    @PostMapping("/{id}/pay")
+    @Operation(summary = "Payer la récompense (propriétaire)")
+    public ResponseEntity<ReturnRequestResponse> payReward(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> request,
             Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
-        Long amount = Long.valueOf(request.get("amount").toString());
-        return ResponseEntity.ok(returnRequestService.proposeReward(id, user.getId(), amount));
+        return ResponseEntity.ok(returnRequestService.payReward(id, user.getId()));
     }
 
-    @PostMapping("/{id}/accept-reward")
-    @Operation(summary = "Accepter la récompense (retrouveur)")
-    public ResponseEntity<ReturnRequestResponse> acceptReward(
+    @PostMapping("/{id}/activate-collaboration")
+    @Operation(summary = "Activer la collaboration (après paiement verrouillé)")
+    public ResponseEntity<ReturnRequestResponse> activateCollaboration(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> request,
             Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
-        Long amount = Long.valueOf(request.get("amount").toString());
-        return ResponseEntity.ok(returnRequestService.acceptReward(id, user.getId(), amount));
+        return ResponseEntity.ok(returnRequestService.activateCollaboration(id, user.getId()));
+    }
+
+    @PostMapping("/{id}/release")
+    @Operation(summary = "Libérer le paiement au retrouveur (après retour confirmé)")
+    public ResponseEntity<ReturnRequestResponse> releasePayment(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        User user = (User) authentication.getPrincipal();
+        return ResponseEntity.ok(returnRequestService.releasePayment(id, user.getId()));
     }
 
     // ─── Validation ──────────────────────────────────────────

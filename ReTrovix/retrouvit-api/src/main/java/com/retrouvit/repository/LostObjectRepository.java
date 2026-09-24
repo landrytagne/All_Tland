@@ -31,4 +31,6 @@ public interface LostObjectRepository extends JpaRepository<LostObject, Long> {
 
     long countByUserId(Long userId);
     long countByUserIdAndStatus(Long userId, ObjectStatus status);
+    long countByCategory(String category);
+    long countByCity(String city);
 }

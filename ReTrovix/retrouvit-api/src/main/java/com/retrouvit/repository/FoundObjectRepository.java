@@ -31,4 +31,6 @@ public interface FoundObjectRepository extends JpaRepository<FoundObject, Long> 
 
     long countByUserId(Long userId);
     long countByUserIdAndStatus(Long userId, ObjectStatus status);
+    long countByCategory(String category);
+    long countByCity(String city);
 }

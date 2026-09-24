@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════
+# RetrouvIt — Git ignore
+# ═══════════════════════════════════════════════════════════════
+
+# Uploads (fichiers utilisateurs)
+uploads/
+retrouvit-api/uploads/
+
+# Build artifacts
+target/
+retrouvit-api/target/
+retrouvit/.next/
+retrouvit/out/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+retrouvit/node_modules/
+
+# Environment files (secrets — ne jamais commiter)
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -56,7 +56,13 @@ public class ReturnRequest {
     @JoinColumn(name = "escrow_id")
     private Escrow escrow;
 
-    // ─── Appointment ────────────────────────────────────────
+    // ─── Proof ──────────────────────────────────────────────
+    @Enumerated(EnumType.STRING)
+    @Column(name = "proof_status")
+    @Builder.Default
+    private ProofStatus proofStatus = null;
+
+    // ─── Appointment (legacy fields kept for backward compat) ─
     @Column(name = "meeting_date")
     private LocalDateTime meetingDate;
 
@@ -112,6 +118,13 @@ public class ReturnRequest {
 
     @Column(name = "platform_fee")
     private Long platformFee;
+
+    // ─── Collaboration & Release ─────────────────────────────
+    @Column(name = "collaboration_started_at")
+    private LocalDateTime collaborationStartedAt;
+
+    @Column(name = "released_at")
+    private LocalDateTime releasedAt;
 
     // ─── Timestamps ─────────────────────────────────────────
     @Column(name = "completed_at")

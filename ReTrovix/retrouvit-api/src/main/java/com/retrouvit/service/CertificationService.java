@@ -7,6 +7,8 @@ import com.retrouvit.exception.ResourceNotFoundException;
 import com.retrouvit.repository.CertificationRequestRepository;
 import com.retrouvit.repository.ReturnRequestRepository;
 import com.retrouvit.repository.UserRepository;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -82,6 +84,23 @@ public class CertificationService {
 
         CertificationRequest saved = certificationRepository.save(certRequest);
         log.info("Certification request {} submitted by user {}", saved.getId(), userId);
+
+        // Notify all admins about the new certification request
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        String notifTitle = "📋 Nouvelle demande de certification";
+        String notifDesc = String.format(
+                "%s a soumis une demande de certification (%s). Veuillez examiner la demande.",
+                user.getName(),
+                request.getDocumentType()
+        );
+        for (User admin : admins) {
+            notificationService.createNotification(
+                    admin.getId(),
+                    NotificationType.SYSTEM,
+                    notifTitle,
+                    notifDesc
+            );
+        }
 
         return toResponse(saved);
     }
@@ -218,6 +237,37 @@ public class CertificationService {
     }
 
     /**
+     * Admin: Suspend a certification request.
+     */
+    @Transactional
+    public CertificationResponseDTO suspendRequest(Long requestId, Long adminId, String reason, String adminNotes) {
+        CertificationRequest request = certificationRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Demande de certification non trouvée"));
+
+        if (request.getStatus() != CertificationStatus.PENDING) {
+            throw new IllegalStateException("Cette demande n'est pas en attente de review.");
+        }
+
+        request.setStatus(CertificationStatus.SUSPENDED);
+        request.setReviewedBy(adminId);
+        request.setReviewedAt(LocalDateTime.now());
+        request.setRejectionReason(reason);
+        request.setAdminNotes(adminNotes);
+        certificationRepository.save(request);
+
+        // Notify user
+        notificationService.createNotification(
+                request.getUser().getId(),
+                NotificationType.SYSTEM,
+                "⏸️ Demande de certification suspendue",
+                "Votre demande de certification a été mise en suspens. Raison : " + reason + ". Un administrateur vous recontactera pour plus d'informations."
+        );
+
+        log.info("Certification request {} suspended by admin {}: {}", requestId, adminId, reason);
+        return toResponse(request);
+    }
+
+    /**
      * User: Cancel a pending request.
      */
     @Transactional
@@ -241,6 +291,13 @@ public class CertificationService {
     }
 
     /**
+     * Get pending certification request count (admin badge).
+     */
+    public long getPendingCount() {
+        return certificationRepository.countByStatus(CertificationStatus.PENDING);
+    }
+
+    /**
      * Get certification stats (admin).
      */
     public java.util.Map<String, Object> getCertificationStats() {
@@ -249,10 +306,13 @@ public class CertificationService {
         long rejected = certificationRepository.countByStatus(CertificationStatus.REJECTED);
         long total = certificationRepository.count();
 
+        long suspended = certificationRepository.countByStatus(CertificationStatus.SUSPENDED);
+
         java.util.Map<String, Object> stats = new java.util.HashMap<>();
         stats.put("pending", pending);
         stats.put("approved", approved);
         stats.put("rejected", rejected);
+        stats.put("suspended", suspended);
         stats.put("total", total);
         stats.put("approvalRate", total > 0 ? Math.round((double) approved / total * 100) : 0);
         return stats;

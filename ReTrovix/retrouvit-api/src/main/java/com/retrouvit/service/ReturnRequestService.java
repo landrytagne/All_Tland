@@ -37,7 +37,7 @@ public class ReturnRequestService {
     private final WebSocketNotificationController wsNotificationController;
 
     // ════════════════════════════════════════════════════════════
-    // Initiate return (finder starts chat)
+    // Phase 1: Initiate return (finder creates match)
     // ════════════════════════════════════════════════════════════
 
     @Transactional
@@ -58,7 +58,7 @@ public class ReturnRequestService {
                 .foundObject(foundObject)
                 .loser(loser)
                 .finder(finder)
-                .status(ReturnStatus.CHAT_INITIATED)
+                .status(ReturnStatus.MATCH_FOUND)
                 .build();
 
         ReturnRequest saved = returnRequestRepository.save(request);
@@ -74,7 +74,7 @@ public class ReturnRequestService {
                 .user(loser)
                 .type(NotificationType.MATCH)
                 .title("Objet trouvé !")
-                .description(finder.getName() + " a trouvé votre objet : " + (lostObject != null ? lostObject.getTitle() : "objet") + ". Démarrez la conversation pour organiser la restitution.")
+                .description(finder.getName() + " a trouvé votre objet : " + (lostObject != null ? lostObject.getTitle() : "objet") + ". Soumettez des preuves pour prouver la correspondance.")
                 .read(false)
                 .build());
 
@@ -85,7 +85,7 @@ public class ReturnRequestService {
     }
 
     // ════════════════════════════════════════════════════════════
-    // Reward flow
+    // Backward-compatible reward flow (used by messages page)
     // ════════════════════════════════════════════════════════════
 
     @Transactional
@@ -98,7 +98,7 @@ public class ReturnRequestService {
         }
 
         request.setProposedAmount(amount);
-        request.setStatus(ReturnStatus.REWARD_PROPOSED);
+        request.setStatus(ReturnStatus.NEGOTIATING);
         ReturnRequest saved = returnRequestRepository.save(request);
 
         // Notify finder
@@ -110,7 +110,6 @@ public class ReturnRequestService {
                 .read(false)
                 .build());
 
-        // WebSocket push
         pushReturnNotification(saved, "Récompense proposée", String.format("%,d", amount) + " XAF proposés.", "PAYMENT");
 
         return toResponse(saved, null);
@@ -137,7 +136,7 @@ public class ReturnRequestService {
 
         // Now safely update the return request
         request.setAcceptedAmount(acceptedAmount);
-        request.setStatus(ReturnStatus.REWARD_ACCEPTED);
+        request.setStatus(ReturnStatus.PAYMENT_LOCKED);
 
         // Create and save escrow first (must be persisted before setting on ReturnRequest)
         com.retrouvit.entity.Escrow escrow = com.retrouvit.entity.Escrow.builder()
@@ -165,14 +164,150 @@ public class ReturnRequestService {
                 .read(false)
                 .build());
 
-        // WebSocket push
         pushReturnNotification(saved, "Récompense acceptée", String.format("%,d", acceptedAmount) + " XAF en séquestre.", "PAYMENT");
 
         return toResponse(saved, null);
     }
 
     // ════════════════════════════════════════════════════════════
-    // Validation flow (both parties validate)
+    // Phase 4: Paiement — Le owner paie le montant accepté
+    // ════════════════════════════════════════════════════════════
+
+    @Transactional
+    public ReturnRequestResponse payReward(Long requestId, Long userId) {
+        ReturnRequest request = returnRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Demande de retour non trouvée"));
+
+        if (!request.getLoser().getId().equals(userId)) {
+            throw new IllegalArgumentException("Seul le propriétaire peut effectuer le paiement");
+        }
+
+        if (request.getStatus() != ReturnStatus.REWARD_ACCEPTED) {
+            throw new IllegalArgumentException(
+                    "Le paiement n'est possible qu'après acceptation de la récompense (statut actuel: " + request.getStatus() + ")");
+        }
+
+        Long amount = request.getAcceptedAmount();
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Montant de récompense invalide");
+        }
+
+        // Vérifier le solde du propriétaire
+        User buyer = request.getLoser();
+        if (buyer.getWalletBalance() < amount) {
+            throw new IllegalArgumentException(
+                    "Solde insuffisant (" + String.format("%,d", buyer.getWalletBalance()) + " XAF). "
+                    + "Rechargez votre portefeuille.");
+        }
+
+        // Débiter le wallet du propriétaire
+        buyer.setWalletBalance(buyer.getWalletBalance() - amount);
+        userRepository.save(buyer);
+
+        // Créer l'escrow
+        Escrow escrow = Escrow.builder()
+                .reference("ESC-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .buyer(request.getLoser())
+                .seller(request.getFinder())
+                .amount(amount)
+                .lostObject(request.getLostObject())
+                .foundObject(request.getFoundObject())
+                .deadline(java.time.LocalDate.now().plusDays(7))
+                .status(EscrowStatus.AWAITING_RETURN)
+                .location(request.getMeetingLocation())
+                .build();
+        Escrow savedEscrow = escrowRepository.save(escrow);
+
+        // Mettre à jour le statut
+        request.setEscrow(savedEscrow);
+        request.setStatus(ReturnStatus.PAYMENT_LOCKED);
+        ReturnRequest saved = returnRequestRepository.save(request);
+
+        // Transaction record
+        transactionRepository.save(Transaction.builder()
+                .user(buyer)
+                .type(TransactionType.DEPOSIT)
+                .amount(amount)
+                .status(TransactionStatus.COMPLETED)
+                .description("Paiement récompense pour retour d'objet (" + saved.getReference() + ")")
+                .build());
+
+        // Notifier les deux parties
+        String formattedAmount = String.format("%,d", amount);
+        notificationRepository.save(Notification.builder()
+                .user(request.getFinder())
+                .type(NotificationType.PAYMENT)
+                .title("Paiement sécurisé !")
+                .description(formattedAmount + " XAF ont été mis en séquestre. Vous pouvez maintenant collaborer.")
+                .read(false)
+                .build());
+
+        pushReturnNotification(saved, "Paiement sécurisé !",
+                formattedAmount + " XAF en séquestre. Collaboration ouverte.", "PAYMENT");
+
+        log.info("Payment locked for return request {}: {} XAF (escrow {})", requestId, amount, savedEscrow.getReference());
+        return toResponse(saved, null);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Phase 5: Activer la collaboration (après PAYMENT_LOCKED)
+    // ════════════════════════════════════════════════════════════
+
+    @Transactional
+    public ReturnRequestResponse activateCollaboration(Long requestId, Long userId) {
+        ReturnRequest request = returnRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Demande de retour non trouvée"));
+
+        boolean isLoser = request.getLoser().getId().equals(userId);
+        boolean isFinder = request.getFinder().getId().equals(userId);
+        if (!isLoser && !isFinder) {
+            throw new IllegalArgumentException("Vous n'êtes pas partie à cette collaboration");
+        }
+
+        if (request.getStatus() != ReturnStatus.PAYMENT_LOCKED) {
+            throw new IllegalArgumentException(
+                    "La collaboration ne peut être activée qu'après verrouillage du paiement (statut actuel: " + request.getStatus() + ")");
+        }
+
+        request.setStatus(ReturnStatus.COLLABORATION_ACTIVE);
+        request.setCollaborationStartedAt(LocalDateTime.now());
+
+        // Mettre à jour l'escrow
+        if (request.getEscrow() != null) {
+            Escrow escrow = request.getEscrow();
+            escrow.setStatus(EscrowStatus.LOCKED);
+            escrow.setProgress(20);
+            escrowRepository.save(escrow);
+        }
+
+        ReturnRequest saved = returnRequestRepository.save(request);
+
+        // Notifier les deux parties
+        notificationRepository.save(Notification.builder()
+                .user(request.getLoser())
+                .type(NotificationType.MATCH)
+                .title("Collaboration active !")
+                .description("Vous pouvez maintenant organiser la restitution avec " + request.getFinder().getName())
+                .read(false)
+                .build());
+
+        notificationRepository.save(Notification.builder()
+                .user(request.getFinder())
+                .type(NotificationType.MATCH)
+                .title("Collaboration active !")
+                .description("La collaboration est ouverte. Organisez la restitution avec " + request.getLoser().getName())
+                .read(false)
+                .build());
+
+        pushReturnNotification(saved, "Collaboration active !",
+                "Messagerie ouverte. Organisez la restitution.", "MATCH");
+
+        log.info("Collaboration activated for return request {}", requestId);
+        return toResponse(saved, null);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Phase 6: Validation collaboration (both parties)
     // ════════════════════════════════════════════════════════════
 
     @Transactional
@@ -187,12 +322,13 @@ public class ReturnRequestService {
             throw new IllegalArgumentException("Vous n'êtes pas partie à cette collaboration");
         }
 
+        if (request.getStatus() != ReturnStatus.COLLABORATION_ACTIVE) {
+            throw new IllegalArgumentException(
+                    "La validation n'est possible qu'en collaboration active (statut actuel: " + request.getStatus() + ")");
+        }
+
         if (isLoser) request.setLoserValidated(true);
         if (isFinder) request.setFinderValidated(true);
-
-        if (request.isFullyValidated()) {
-            request.setStatus(ReturnStatus.BOTH_VALIDATED);
-        }
 
         ReturnRequest saved = returnRequestRepository.save(request);
 
@@ -207,7 +343,6 @@ public class ReturnRequestService {
                 .read(false)
                 .build());
 
-        // WebSocket push
         if (request.isFullyValidated()) {
             pushReturnNotification(saved, "Collaboration validée", who + " a validé. Fixez un rendez-vous !", "MATCH");
         } else {
@@ -226,11 +361,15 @@ public class ReturnRequestService {
         ReturnRequest request = returnRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Demande de retour non trouvée"));
 
+        if (request.getStatus() != ReturnStatus.COLLABORATION_ACTIVE) {
+            throw new IllegalArgumentException(
+                    "Le rendez-vous ne peut être fixé qu'en collaboration active (statut actuel: " + request.getStatus() + ")");
+        }
+
         request.setMeetingDate(meetingDate);
         request.setMeetingLocation(location);
         request.setMeetingLat(lat);
         request.setMeetingLng(lng);
-        request.setStatus(ReturnStatus.APPOINTMENT_SET);
 
         ReturnRequest saved = returnRequestRepository.save(request);
 
@@ -254,6 +393,12 @@ public class ReturnRequestService {
     public ReturnRequestResponse startReturn(Long requestId, Long userId) {
         ReturnRequest request = returnRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Demande de retour non trouvée"));
+
+        if (request.getStatus() != ReturnStatus.COLLABORATION_ACTIVE) {
+            throw new IllegalArgumentException(
+                    "La restitution ne peut démarrer qu'en collaboration active (statut actuel: " + request.getStatus() + ")");
+        }
+
         request.setStatus(ReturnStatus.RETURN_IN_PROGRESS);
         ReturnRequest saved = returnRequestRepository.save(request);
 
@@ -267,7 +412,7 @@ public class ReturnRequestService {
     }
 
     // ════════════════════════════════════════════════════════════
-    // Return confirmation (both parties)
+    // Phase 7: Return confirmation (both parties)
     // ════════════════════════════════════════════════════════════
 
     @Transactional
@@ -282,13 +427,25 @@ public class ReturnRequestService {
             throw new IllegalArgumentException("Vous n'êtes pas partie à cette restitution");
         }
 
+        if (request.getStatus() != ReturnStatus.RETURN_IN_PROGRESS
+                && request.getStatus() != ReturnStatus.RETURN_CONFIRMED) {
+            throw new IllegalArgumentException(
+                    "La confirmation de retour n'est pas possible en statut " + request.getStatus());
+        }
+
         if (isLoser) request.setLoserReturnConfirmed(true);
         if (isFinder) request.setFinderReturnConfirmed(true);
 
         if (request.isFullyReturned()) {
             request.setStatus(ReturnStatus.RETURN_CONFIRMED);
-            // Process payment immediately
-            processPayment(request);
+
+            // Mettre à jour l'escrow
+            if (request.getEscrow() != null) {
+                Escrow escrow = request.getEscrow();
+                escrow.setStatus(EscrowStatus.RETURN_CONFIRMED);
+                escrow.setProgress(80);
+                escrowRepository.save(escrow);
+            }
         }
 
         ReturnRequest saved = returnRequestRepository.save(request);
@@ -303,12 +460,47 @@ public class ReturnRequestService {
                 .read(false)
                 .build());
 
-        // WebSocket push
         if (request.isFullyReturned()) {
-            pushReturnNotification(saved, "Retour confirmé !", "L'objet a été restitué. Paiement en cours...", "PAYMENT");
+            pushReturnNotification(saved, "Retour confirmé !", "L'objet a été restitué. Le paiement va être libéré.", "PAYMENT");
         } else {
             pushReturnNotificationToUser(other.getId(), saved, "Retour confirmé", who + " a confirmé la restitution.", "MATCH");
         }
+
+        return toResponse(saved, null);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Phase 8: Release payment (after return confirmed)
+    // ════════════════════════════════════════════════════════════
+
+    @Transactional
+    public ReturnRequestResponse releasePayment(Long requestId, Long userId) {
+        ReturnRequest request = returnRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Demande de retour non trouvée"));
+
+        boolean isLoser = request.getLoser().getId().equals(userId);
+        boolean isFinder = request.getFinder().getId().equals(userId);
+        if (!isLoser && !isFinder) {
+            throw new IllegalArgumentException("Vous n'êtes pas partie à cette transaction");
+        }
+
+        if (request.getStatus() != ReturnStatus.RETURN_CONFIRMED) {
+            throw new IllegalArgumentException(
+                    "Le paiement ne peut être libéré qu'après confirmation du retour (statut actuel: " + request.getStatus() + ")");
+        }
+
+        // Protection contre double release
+        if (request.getEscrow() != null) {
+            Escrow escrow = request.getEscrow();
+            if (escrow.getStatus() == EscrowStatus.RELEASED || escrow.getStatus() == EscrowStatus.COMPLETED) {
+                throw new IllegalStateException("Ce paiement a déjà été libéré");
+            }
+        }
+
+        // Libérer le paiement
+        processPayment(request);
+
+        ReturnRequest saved = returnRequestRepository.save(request);
 
         return toResponse(saved, null);
     }
@@ -338,11 +530,21 @@ public class ReturnRequestService {
                 .type(TransactionType.REWARD)
                 .amount(finderPayment)
                 .status(TransactionStatus.COMPLETED)
-                .description("Récompense pour retour de " + request.getLostObject().getTitle()
+                .description("Récompense pour retour de " + (request.getLostObject() != null ? request.getLostObject().getTitle() : "objet")
                         + " (-" + platformFee + " XAF de frais de plateforme)")
                 .build());
 
-        request.setStatus(ReturnStatus.PAYMENT_COMPLETED);
+        // Mettre à jour l'escrow
+        if (request.getEscrow() != null) {
+            Escrow escrow = request.getEscrow();
+            escrow.setStatus(EscrowStatus.RELEASED);
+            escrow.setProgress(100);
+            escrow.setCompletedAt(LocalDateTime.now());
+            escrowRepository.save(escrow);
+        }
+
+        request.setStatus(ReturnStatus.RELEASED);
+        request.setReleasedAt(LocalDateTime.now());
         request.setCompletedAt(LocalDateTime.now());
 
         // Update lost object status to RETURNED
@@ -356,7 +558,7 @@ public class ReturnRequestService {
             foundObjectRepository.save(request.getFoundObject());
         }
 
-        log.info("Payment processed: {} XAF to finder ({} XAF platform fee)",
+        log.info("Payment released: {} XAF to finder ({} XAF platform fee)",
                 finderPayment, platformFee);
 
         // Notify
@@ -368,8 +570,16 @@ public class ReturnRequestService {
                 .read(false)
                 .build());
 
-        // WebSocket push
-        pushReturnNotification(request, "Paiement effectué !", String.format("%,d", finderPayment) + " XAF versés au retrouveur.", "PAYMENT");
+        notificationRepository.save(Notification.builder()
+                .user(request.getLoser())
+                .type(NotificationType.PAYMENT)
+                .title("Paiement effectué")
+                .description(String.format("%,d", finderPayment) + " XAF versés au retrouveur.")
+                .read(false)
+                .build());
+
+        pushReturnNotification(request, "Paiement libéré !",
+                String.format("%,d", finderPayment) + " XAF versés au retrouveur.", "PAYMENT");
 
         // Send completion email
         emailService.sendReturnCompletedEmail(request);
@@ -384,10 +594,25 @@ public class ReturnRequestService {
         ReturnRequest request = returnRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Demande de retour non trouvée"));
 
+        // Vérifier que la demande est dans un état permettant un litige
+        if (request.getStatus() == ReturnStatus.COMPLETED
+                || request.getStatus() == ReturnStatus.RELEASED
+                || request.getStatus() == ReturnStatus.REFUNDED
+                || request.getStatus() == ReturnStatus.CANCELLED) {
+            throw new IllegalArgumentException("Impossible de signaler un litige pour une transaction terminée");
+        }
+
         request.setStatus(ReturnStatus.DISPUTED);
         request.setDisputeReason(reason);
         request.setDisputedBy(userId);
         request.setDisputeResolved(false);
+
+        // Geler l'escrow
+        if (request.getEscrow() != null) {
+            Escrow escrow = request.getEscrow();
+            escrow.setStatus(EscrowStatus.DISPUTED);
+            escrowRepository.save(escrow);
+        }
 
         ReturnRequest saved = returnRequestRepository.save(request);
 
@@ -535,7 +760,7 @@ public class ReturnRequestService {
         long resolved = returnRequestRepository.findByStatus(ReturnStatus.DISPUTE_RESOLVED).size();
         long total = disputed + resolved;
         List<ReturnRequest> allReturns = returnRequestRepository.findAll();
-        long completed = allReturns.stream().filter(r -> r.getStatus() == ReturnStatus.PAYMENT_COMPLETED).count();
+        long completed = allReturns.stream().filter(r -> r.getStatus() == ReturnStatus.RELEASED).count();
         long totalVolume = allReturns.stream()
                 .filter(r -> r.getAcceptedAmount() != null)
                 .mapToLong(ReturnRequest::getAcceptedAmount)

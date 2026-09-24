@@ -100,6 +100,24 @@ export const returnsApi = {
       method: "POST",
     }),
 
+  /** Payer la récompense (owner) */
+  pay: (id: number) =>
+    apiRequest<ReturnRequestResponse>(`/api/returns/${id}/pay`, {
+      method: "POST",
+    }),
+
+  /** Activer la collaboration (après paiement verrouillé) */
+  activateCollaboration: (id: number) =>
+    apiRequest<ReturnRequestResponse>(`/api/returns/${id}/activate-collaboration`, {
+      method: "POST",
+    }),
+
+  /** Libérer le paiement au retrouveur */
+  release: (id: number) =>
+    apiRequest<ReturnRequestResponse>(`/api/returns/${id}/release`, {
+      method: "POST",
+    }),
+
   dispute: (id: number, reason: string) =>
     apiRequest<ReturnRequestResponse>(`/api/returns/${id}/dispute`, {
       method: "POST",
