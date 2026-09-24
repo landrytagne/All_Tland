@@ -39,14 +39,35 @@ public class UserService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
+        return buildAuthResponse(user, null, null);
+    }
+
+    /**
+     * Variante du login prenant en charge les métadonnées de session
+     * (User-Agent, IP) captées par le contrôleur — cahier des charges §5.1.
+     */
+    public AuthResponse login(AuthRequest request, String userAgent, String ipAddress) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
+
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
+
+        return buildAuthResponse(user, userAgent, ipAddress);
+    }
+
+    private AuthResponse buildAuthResponse(User user, String userAgent, String ipAddress) {
         String token = jwtService.generateToken(user.getEmail(), user.getRole().name());
         String refreshToken = jwtService.generateRefreshToken(user.getEmail(), user.getRole().name());
 
-        // Persist refresh token in DB
+        // Persist refresh token in DB avec métadonnées d'appareil
         RefreshToken persistedRefreshToken = RefreshToken.builder()
                 .token(refreshToken)
                 .user(user)
                 .expiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationMillis() / 1000))
+                .deviceInfo(truncate(userAgent, 255))
+                .ipAddress(truncate(ipAddress, 45))
                 .build();
         refreshTokenRepository.save(persistedRefreshToken);
 
@@ -59,6 +80,12 @@ public class UserService {
                 .email(user.getEmail())
                 .role(user.getRole().name())
                 .build();
+    }
+
+    /** Tronque une chaîne à la longueur max de la colonne (évite les erreurs SQL). */
+    private String truncate(String value, int maxLength) {
+        if (value == null) return null;
+        return value.length() <= maxLength ? value : value.substring(0, maxLength - 1);
     }
 
     @Transactional
@@ -93,11 +120,13 @@ public class UserService {
         String newAccessToken = jwtService.generateToken(user.getEmail(), user.getRole().name());
         String newRefreshToken = jwtService.generateRefreshToken(user.getEmail(), user.getRole().name());
 
-        // 6. Persist new refresh token
+        // 6. Persist new refresh token (hérite des métadonnées de l'ancien : même appareil)
         RefreshToken newPersistedToken = RefreshToken.builder()
                 .token(newRefreshToken)
                 .user(user)
                 .expiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationMillis() / 1000))
+                .deviceInfo(storedToken.getDeviceInfo())
+                .ipAddress(storedToken.getIpAddress())
                 .build();
         refreshTokenRepository.save(newPersistedToken);
 
@@ -124,6 +153,40 @@ public class UserService {
     @Transactional
     public void logoutAll(Long userId) {
         refreshTokenRepository.revokeAllByUserId(userId);
+    }
+
+    /**
+     * Liste des sessions/appareils actifs de l'utilisateur — CDC §5.1.
+     * Une session est "active" si son refresh token n'est ni révoqué ni expiré.
+     * Le token lui-même n'est jamais exposé, seules ses métadonnées.
+     */
+    @Transactional(readOnly = true)
+    public List<SessionResponse> getActiveSessions(Long userId, String currentUserRefreshToken) {
+        return refreshTokenRepository.findByUserIdAndRevokedFalseOrderByCreatedAtDesc(userId).stream()
+                .filter(t -> !t.isExpired())
+                .map(t -> SessionResponse.builder()
+                        .id(t.getId())
+                        .deviceInfo(t.getDeviceInfo())
+                        .ipAddress(t.getIpAddress())
+                        .createdAt(t.getCreatedAt())
+                        .expiresAt(t.getExpiresAt())
+                        .current(currentUserRefreshToken != null && t.getToken().equals(currentUserRefreshToken))
+                        .expired(false)
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /** Révoque une session spécifique (déconnexion d'un appareil distant). */
+    @Transactional
+    public void revokeSession(Long userId, Long sessionId) {
+        RefreshToken token = refreshTokenRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session non trouvée"));
+        if (!token.getUser().getId().equals(userId)) {
+            // Une session ne peut être révoquée que par son propriétaire
+            throw new ResourceNotFoundException("Session non trouvée");
+        }
+        token.setRevoked(true);
+        refreshTokenRepository.save(token);
     }
 
     public UserResponse register(RegisterRequest request) {

@@ -33,9 +33,13 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Se connecter", description = "Authentifie un utilisateur et retourne un access token + refresh token")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
-        AuthResponse response = userService.login(request);
+    @Operation(summary = "Se connecter", description = "Authentifie un utilisateur et retourne un access token + refresh token. Les métadonnées d'appareil (User-Agent, IP) sont enregistrées pour la liste des sessions.")
+    public ResponseEntity<AuthResponse> login(
+            @Valid @RequestBody AuthRequest request,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            HttpServletRequest httpRequest
+    ) {
+        AuthResponse response = userService.login(request, userAgent, extractClientIp(httpRequest));
         return ResponseEntity.ok(response);
     }
 
@@ -76,6 +80,50 @@ public class AuthController {
         return ResponseEntity.ok(java.util.Map.of(
                 "message", "Déconnexion de tous les appareils réussie"
         ));
+    }
+
+    @GetMapping("/sessions")
+    @Operation(
+            summary = "Lister les sessions/appareils actifs",
+            description = "Retourne les sessions actives de l'utilisateur (CDC §5.1). Le champ current indique la session à l'origine de l'appel."
+    )
+    public ResponseEntity<List<SessionResponse>> getSessions(
+            Authentication authentication,
+            @RequestHeader(value = "X-Refresh-Token", required = false) String currentRefreshToken
+    ) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(userService.getActiveSessions(user.getId(), currentRefreshToken));
+    }
+
+    @DeleteMapping("/sessions/{sessionId}")
+    @Operation(
+            summary = "Révoquer une session spécifique",
+            description = "Déconnecte un appareil distant en révoquant son refresh token. Une session ne peut être révoquée que par son propriétaire."
+    )
+    public ResponseEntity<java.util.Map<String, String>> revokeSession(
+            @PathVariable Long sessionId,
+            Authentication authentication
+    ) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        userService.revokeSession(user.getId(), sessionId);
+        return ResponseEntity.ok(java.util.Map.of("message", "Session révoquée"));
+    }
+
+    /** Extrait l'IP réelle du client en tenant compte des proxys (Vercel, nginx). */
+    private String extractClientIp(HttpServletRequest request) {
+        String[] headers = {"X-Forwarded-For", "X-Real-IP"};
+        for (String header : headers) {
+            String value = request.getHeader(header);
+            if (value != null && !value.isBlank()) {
+                // X-Forwarded-For peut contenir une liste : premier = client d'origine
+                return value.split(",")[0].trim();
+            }
+        }
+        return request.getRemoteAddr();
     }
 
     @PostMapping("/forgot-password")
