@@ -34,6 +34,9 @@ public class PlatformSettingsService {
         put("default_language", new String[]{"fr", "STRING", "Langue par défaut"});
         put("min_trust_score_certification", new String[]{"40", "NUMBER", "Score min. certification"});
         put("platform_fee_percent", new String[]{"5", "NUMBER", "Frais plateforme (%)"});
+        // Seuils de matching — paramétrables depuis le back-office (CDC §7.2/§14.2)
+        put("match_min_score", new String[]{"80", "NUMBER", "Score minimum de correspondance (%)"});
+        put("match_strong_score", new String[]{"90", "NUMBER", "Seuil du badge « correspondance forte » (%)"});
     }};
 
     /**

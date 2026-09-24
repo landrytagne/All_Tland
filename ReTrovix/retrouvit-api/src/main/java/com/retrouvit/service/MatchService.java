@@ -21,6 +21,22 @@ public class MatchService {
 
     private final MatchRepository matchRepository;
     private final UserRepository userRepository;
+    private final com.retrouvit.service.PlatformSettingsService platformSettingsService;
+
+    /**
+     * Badge « correspondance forte » : score ≥ seuil paramétrable
+     * match_strong_score (défaut 90, CDC §7.2). Affiché en priorité
+     * dans l'onglet correspondances côté client.
+     */
+    private boolean isStrongMatch(Integer score) {
+        try {
+            int strong = platformSettingsService.getSettingAsInt("match_strong_score");
+            if (strong <= 0) strong = 90;
+            return score != null && score >= strong;
+        } catch (Exception e) {
+            return score != null && score >= 90;
+        }
+    }
 
     public List<MatchResponse> getMatchesByUserId(Long userId) {
         return matchRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
@@ -89,6 +105,8 @@ public class MatchService {
                 .lostObject(loResponse)
                 .foundObject(foResponse)
                 .matchScore(match.getMatchScore())
+                .scoreBreakdown(match.getScoreBreakdown())
+                .strongMatch(isStrongMatch(match.getMatchScore()))
                 .status(match.getStatus().name())
                 .user(toUserResponse(match.getUser()))
                 .createdAt(match.getCreatedAt())

@@ -10,6 +10,7 @@ import {
   XCircle,
   MessageCircle,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AuthGuard } from "@/components/auth-guard";
@@ -203,7 +204,7 @@ function MatchCard({
             </div>
           </div>
 
-          {/* Match Score */}
+          {/* Match Score + badge « correspondance forte » (CDC §7.2) */}
           <div className="flex flex-col items-center justify-center gap-2 sm:w-24">
             <div className={`
               flex h-14 w-14 items-center justify-center rounded-full text-sm font-bold
@@ -213,6 +214,15 @@ function MatchCard({
             `}>
               {match.matchScore}%
             </div>
+            {match.strongMatch && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-semibold"
+                title="Correspondance forte — score ≥ 90 %"
+              >
+                <Zap className="h-3 w-3" />
+                Forte
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground text-center">Score de match</span>
           </div>
 

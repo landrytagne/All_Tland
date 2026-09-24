@@ -90,7 +90,10 @@ public class LostObjectController {
             Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
-        return ResponseEntity.ok(lostObjectService.update(id, request, user.getId()));
+        LostObjectResponse response = lostObjectService.update(id, request, user.getId());
+        // Modification significative (photo, description) → recalcul (CDC §7.2)
+        matchingEngine.matchForObject(response.getId());
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")

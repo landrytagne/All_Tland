@@ -11,4 +11,7 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     List<Match> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, MatchStatus status);
     long countByUserId(Long userId);
     long countByUserIdAndStatus(Long userId, MatchStatus status);
+
+    /** Anti-doublon pour le recalcul du matching (CDC §7.2). */
+    boolean existsByLostObjectIdAndFoundObjectId(Long lostObjectId, Long foundObjectId);
 }
