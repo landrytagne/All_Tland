@@ -37,6 +37,7 @@ public class PlatformSettingsService {
         // Seuils de matching — paramétrables depuis le back-office (CDC §7.2/§14.2)
         put("match_min_score", new String[]{"80", "NUMBER", "Score minimum de correspondance (%)"});
         put("match_strong_score", new String[]{"90", "NUMBER", "Seuil du badge « correspondance forte » (%)"});
+        put("withdraw_manual_review_min", new String[]{"100000", "NUMBER", "Seuil anti-fraude retrait XAF (validation finance)"});
     }};
 
     /**

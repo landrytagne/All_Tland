@@ -185,7 +185,29 @@ export const walletApi = {
       method: "POST",
       body: { amount },
     }),
+
+  // ─── Retraits (CDC §5.4) ───────────────────────────────────
+  withdraw: (data: { amount: number; method: string; phoneNumber?: string }) =>
+    apiRequest<WithdrawalResponse>("/api/wallet/withdraw", {
+      method: "POST",
+      body: data,
+    }),
+
+  getWithdrawals: () =>
+    apiRequest<WithdrawalResponse[]>("/api/wallet/withdrawals"),
 };
+
+export interface WithdrawalResponse {
+  id: number;
+  reference: string;
+  amount: number;
+  method: string;
+  phoneNumber?: string | null;
+  status: "PENDING_REVIEW" | "PROCESSING" | "COMPLETED" | "FAILED" | "REJECTED";
+  failureReason?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
+}
 
 // ─── Escrow API ─────────────────────────────────────────────────────
 

@@ -79,6 +79,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/transactions/**").authenticated()
 
                         // Payments
+                        // Webhook provider de paiement (public, signé) — DOIT
+                        // précéder /api/payments/** (l'ordre des matchers compte)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         .requestMatchers("/api/payments/**").authenticated()
 
                         // Escrow
@@ -109,6 +112,9 @@ public class SecurityConfig {
 
                         // Admin only
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        // Finance (validation retraits, réconciliation — CDC §8.2)
+                        .requestMatchers("/api/finance/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )
