@@ -69,6 +69,19 @@ jwt:
   expiration: ${JWT_EXPIRATION:3600000}           # 1 hour (access token)
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:2592000000} # 30 days (refresh token)
 
+# Google OAuth2 (CDC §5.1/§6.1) — credentials à créer dans la console
+# Google Cloud (test différé) ; laisser vide désactive les endpoints Google.
+google:
+  oauth:
+    client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+    client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+
+# Provider de paiement simulé (branchement réel : implémenter PaymentGatewayService)
+payment:
+  simulation:
+    default-success: ${PAYMENT_SIMULATION_SUCCESS:true}
+  webhook-secret: ${PAYMENT_WEBHOOK_SECRET:retrouvit-webhook-secret}
+
 # File Upload Configuration
 upload:
   dir: ${UPLOAD_DIR:./uploads}
