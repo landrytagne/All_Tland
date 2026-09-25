@@ -25,8 +25,15 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    /** Null pour les comptes Google (authentification déléguée — CDC §6.1). */
+    @Column
     private String password;
+
+    /** LOCAL ou GOOGLE (CDC §4.1). */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 32)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
