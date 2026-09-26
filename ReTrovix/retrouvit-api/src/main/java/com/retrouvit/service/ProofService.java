@@ -49,8 +49,8 @@ public class ProofService {
 
         // Vérifier que la demande est dans un état valide pour soumettre des preuves
         if (request.getStatus() != ReturnStatus.MATCH_FOUND
-                && request.getStatus() != ReturnStatus.PROOF_SUBMITTED
-                && request.getStatus() != ReturnStatus.NEED_MORE_INFO) {
+                && request.getStatus() != ReturnStatus.VERIFICATION_PENDING
+                && request.getStatus() != ReturnStatus.VERIFICATION_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de soumettre des preuves pour une demande en statut " + request.getStatus());
         }
@@ -73,7 +73,7 @@ public class ProofService {
         Proof saved = proofRepository.save(proof);
 
         // Mettre à jour le statut de la demande
-        request.setStatus(ReturnStatus.PROOF_SUBMITTED);
+        request.setStatus(ReturnStatus.VERIFICATION_PENDING);
         request.setProofStatus(ProofStatus.SUBMITTED);
         returnRequestRepository.save(request);
 
@@ -113,7 +113,7 @@ public class ProofService {
         }
 
         // Vérifier le statut
-        if (request.getStatus() != ReturnStatus.PROOF_SUBMITTED) {
+        if (request.getStatus() != ReturnStatus.VERIFICATION_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de demander plus d'infos pour une demande en statut " + request.getStatus());
         }
@@ -139,7 +139,7 @@ public class ProofService {
         }
 
         // Mettre à jour le statut de la demande
-        request.setStatus(ReturnStatus.NEED_MORE_INFO);
+        request.setStatus(ReturnStatus.VERIFICATION_PENDING);
         request.setProofStatus(ProofStatus.NEED_MORE_INFO);
         returnRequestRepository.save(request);
 
@@ -175,7 +175,7 @@ public class ProofService {
         }
 
         // Vérifier le statut
-        if (request.getStatus() != ReturnStatus.PROOF_SUBMITTED) {
+        if (request.getStatus() != ReturnStatus.VERIFICATION_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de confirmer la propriété pour une demande en statut " + request.getStatus());
         }
@@ -191,7 +191,7 @@ public class ProofService {
         }
 
         // Mettre à jour le statut de la demande
-        request.setStatus(ReturnStatus.OWNER_CONFIRMED);
+        request.setStatus(ReturnStatus.VERIFIED);
         request.setProofStatus(ProofStatus.APPROVED);
         ReturnRequest saved = returnRequestRepository.save(request);
 
@@ -228,7 +228,7 @@ public class ProofService {
         }
 
         // Vérifier le statut
-        if (request.getStatus() != ReturnStatus.PROOF_SUBMITTED) {
+        if (request.getStatus() != ReturnStatus.VERIFICATION_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de rejeter les preuves pour une demande en statut " + request.getStatus());
         }

@@ -45,9 +45,10 @@ public class NegotiationService {
             throw new IllegalArgumentException("Vous n'êtes pas partie à cette négociation");
         }
 
-        // Vérifier le statut — doit être OWNER_CONFIRMED ou NEGOTIATING
-        if (request.getStatus() != ReturnStatus.OWNER_CONFIRMED
-                && request.getStatus() != ReturnStatus.NEGOTIATING) {
+        // Vérifier le statut — proposition possible dès la conversation active
+        // (mapping §25 : l'ancien OWNER_CONFIRMED/NEGOTIATING devient CHAT_ACTIVE/PROPOSAL_PENDING)
+        if (request.getStatus() != ReturnStatus.CHAT_ACTIVE
+                && request.getStatus() != ReturnStatus.PROPOSAL_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de proposer un montant pour une demande en statut " + request.getStatus());
         }
@@ -57,10 +58,10 @@ public class NegotiationService {
             throw new IllegalArgumentException("Le montant doit être supérieur à 0");
         }
 
-        // Seul le owner peut proposer en premier (après OWNER_CONFIRMED)
-        if (request.getStatus() == ReturnStatus.OWNER_CONFIRMED && !isOwner) {
+        // Seul le finder peut faire la première proposition (§6 — mapping de l'ancienne règle owner-first)
+        if (request.getStatus() == ReturnStatus.CHAT_ACTIVE && !isFinder) {
             throw new IllegalArgumentException(
-                    "Le propriétaire doit faire la première proposition de récompense");
+                    "Le Finder fait la première proposition de récompense");
         }
 
         NegotiationOffer offer = NegotiationOffer.builder()
@@ -73,8 +74,8 @@ public class NegotiationService {
 
         NegotiationOffer saved = negotiationOfferRepository.save(offer);
 
-        // Mettre à jour le statut de la demande
-        request.setStatus(ReturnStatus.NEGOTIATING);
+        // Mettre à jour le statut de la demande (§25 : PROPOSAL_PENDING)
+        request.setStatus(ReturnStatus.PROPOSAL_PENDING);
         request.setProposedAmount(amount);
         returnRequestRepository.save(request);
 
@@ -116,8 +117,8 @@ public class NegotiationService {
             throw new IllegalArgumentException("Vous n'êtes pas partie à cette négociation");
         }
 
-        // Doit être en négociation
-        if (request.getStatus() != ReturnStatus.NEGOTIATING) {
+        // Doit être en proposition en attente
+        if (request.getStatus() != ReturnStatus.PROPOSAL_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de contre-proposer pour une demande en statut " + request.getStatus());
         }
@@ -189,7 +190,7 @@ public class NegotiationService {
             throw new IllegalArgumentException("Vous n'êtes pas partie à cette négociation");
         }
 
-        if (request.getStatus() != ReturnStatus.NEGOTIATING) {
+        if (request.getStatus() != ReturnStatus.PROPOSAL_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible d'accepter pour une demande en statut " + request.getStatus());
         }
@@ -207,9 +208,9 @@ public class NegotiationService {
             negotiationOfferRepository.save(lastOffer);
         }
 
-        // Enregistrer le montant accepté
+        // Enregistrer le montant accepté (§7 : accepter → PAYMENT_PENDING)
         request.setAcceptedAmount(request.getProposedAmount());
-        request.setStatus(ReturnStatus.REWARD_ACCEPTED);
+        request.setStatus(ReturnStatus.PAYMENT_PENDING);
         ReturnRequest saved = returnRequestRepository.save(request);
 
         // Notifier l'autre partie
@@ -251,7 +252,7 @@ public class NegotiationService {
             throw new IllegalArgumentException("Vous n'êtes pas partie à cette négociation");
         }
 
-        if (request.getStatus() != ReturnStatus.NEGOTIATING) {
+        if (request.getStatus() != ReturnStatus.PROPOSAL_PENDING) {
             throw new IllegalArgumentException(
                     "Impossible de refuser pour une demande en statut " + request.getStatus());
         }
@@ -265,7 +266,9 @@ public class NegotiationService {
             negotiationOfferRepository.save(lastOffer);
         }
 
-        request.setStatus(ReturnStatus.CANCELLED);
+        // §8 : refus de la proposition → retour à la discussion, pas d'annulation
+        request.setStatus(ReturnStatus.CHAT_ACTIVE);
+        request.setProposedAmount(null);
         ReturnRequest saved = returnRequestRepository.save(request);
 
         // Notifier l'autre partie

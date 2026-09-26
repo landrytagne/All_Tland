@@ -1,6 +1,5 @@
-# RetrouvIt — Flow complet de restitution d'un objet
-
-> **Version de référence pour l'implémentation**
+# RetrouvIt — Flow complet de restitution d'un objet 
+>**Version de référence pour l'implémentation**
 
 **Principe UX central :**
 **Vérifier → Se mettre en relation → Discuter → S'accorder → Sécuriser le paiement → Commencer la mission → Restituer → Confirmer → Libérer les fonds → Évaluer.**

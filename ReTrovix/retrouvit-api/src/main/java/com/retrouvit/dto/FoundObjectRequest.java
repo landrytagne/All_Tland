@@ -29,4 +29,11 @@ public class FoundObjectRequest {
     private LocalDate dateFound;
     private String image;
     private String images;
+
+    // ─── Vérification de propriété (§2 / CDC §4.2) ─────────────
+    /** Question affichée au Chercheur avant mise en relation (optionnelle). */
+    private String verificationQuestion;
+
+    /** Réponse en clair À L'ENTRÉE — stockée uniquement hachée (bcrypt), jamais relue. */
+    private String verificationAnswer;
 }

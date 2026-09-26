@@ -79,7 +79,12 @@ public class ReturnRequest {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private ReturnStatus status = ReturnStatus.CHAT_INITIATED;
+    private ReturnStatus status = ReturnStatus.MATCH_FOUND;
+
+    /** Échecs de vérification de propriété — blocage après 5 (§2). */
+    @Column(name = "verification_attempts", nullable = false)
+    @Builder.Default
+    private Integer verificationAttempts = 0;
 
     // ─── Validations ────────────────────────────────────────
     @Column(name = "loser_validated")

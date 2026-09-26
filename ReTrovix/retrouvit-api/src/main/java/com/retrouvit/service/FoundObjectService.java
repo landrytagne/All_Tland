@@ -25,6 +25,7 @@ public class FoundObjectService {
 
     private final FoundObjectRepository foundObjectRepository;
     private final UserRepository userRepository;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     public FoundObjectResponse create(FoundObjectRequest request, Long userId) {
         User user = userRepository.findById(userId)
@@ -39,6 +40,11 @@ public class FoundObjectService {
                 .dateFound(request.getDateFound() != null ? request.getDateFound() : LocalDate.now())
                 .image(request.getImage())
                 .images(request.getImages())
+                // Question de vérification (§2 / CDC §4.2) : la réponse n'est
+                // JAMAIS stockée en clair — uniquement son hachage bcrypt.
+                .verificationQuestion(request.getVerificationQuestion())
+                .verificationAnswerHash(request.getVerificationAnswer() != null && !request.getVerificationAnswer().isBlank()
+                        ? passwordEncoder.encode(request.getVerificationAnswer()) : null)
                 .user(user)
                 .build();
 
@@ -111,6 +117,10 @@ public class FoundObjectService {
         if (request.getDateFound() != null) foundObject.setDateFound(request.getDateFound());
         if (request.getImage() != null) foundObject.setImage(request.getImage());
         if (request.getImages() != null) foundObject.setImages(request.getImages());
+        if (request.getVerificationQuestion() != null) foundObject.setVerificationQuestion(request.getVerificationQuestion());
+        if (request.getVerificationAnswer() != null && !request.getVerificationAnswer().isBlank()) {
+            foundObject.setVerificationAnswerHash(passwordEncoder.encode(request.getVerificationAnswer()));
+        }
 
         FoundObject updated = foundObjectRepository.save(foundObject);
         return toResponse(updated);

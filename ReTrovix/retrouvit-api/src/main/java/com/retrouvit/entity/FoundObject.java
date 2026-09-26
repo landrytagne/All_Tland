@@ -54,6 +54,15 @@ public class FoundObject {
     @Builder.Default
     private Integer views = 0;
 
+    // ─── Vérification de propriété (§2 / CDC §4.2) ─────────
+    /** Question de vérification affichée au Chercheur avant mise en relation. */
+    @Column(name = "verification_question", length = 500)
+    private String verificationQuestion;
+
+    /** Réponse hachée (bcrypt) — jamais stockée ni exposée en clair (CDC §6.2). */
+    @Column(name = "verification_answer_hash", length = 255)
+    private String verificationAnswerHash;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

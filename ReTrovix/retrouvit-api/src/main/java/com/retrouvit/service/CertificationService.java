@@ -59,7 +59,7 @@ public class CertificationService {
         // Count completed returns
         long completedReturns = returnRequestRepository.findByLoserIdOrFinderIdOrderByCreatedAtDesc(userId, userId)
                 .stream()
-                .filter(rr -> rr.getStatus() == ReturnStatus.PAYMENT_COMPLETED)
+                .filter(rr -> rr.getStatus() == ReturnStatus.COMPLETED)
                 .filter(rr -> Boolean.TRUE.equals(rr.getLoserReturnConfirmed()) && Boolean.TRUE.equals(rr.getFinderReturnConfirmed()))
                 .count();
 
@@ -327,7 +327,7 @@ public class CertificationService {
 
         long completedReturns = returnRequestRepository.findByLoserIdOrFinderIdOrderByCreatedAtDesc(userId, userId)
                 .stream()
-                .filter(rr -> rr.getStatus() == ReturnStatus.PAYMENT_COMPLETED)
+                .filter(rr -> rr.getStatus() == ReturnStatus.COMPLETED)
                 .filter(rr -> Boolean.TRUE.equals(rr.getLoserReturnConfirmed()) && Boolean.TRUE.equals(rr.getFinderReturnConfirmed()))
                 .count();
 
