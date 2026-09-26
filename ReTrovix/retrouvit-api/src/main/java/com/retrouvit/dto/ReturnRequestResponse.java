@@ -24,6 +24,8 @@ public class ReturnRequestResponse {
     private Long acceptedAmount;
     private Integer platformFeePct;
     private String status;
+    /** Échecs de vérification de propriété (§2 — blocage après 5). */
+    private Integer verificationAttempts;
     private Boolean loserValidated;
     private Boolean finderValidated;
     private Boolean loserReturnConfirmed;

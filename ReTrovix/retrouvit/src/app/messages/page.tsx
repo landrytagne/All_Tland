@@ -682,14 +682,14 @@ function MessagesContent() {
         lostObjectId: undefined,
       });
 
-      // 2. Propose the reward
-      await returnsApi.proposeReward(result.id, amount);
-
+      // 2. Flow officiel (§27) : la page collaboration est autoritaire —
+      //    vérification, mise en relation, proposition, paiement s'y déroulent.
+      //    Le chat ne fait qu'annoncer et rediriger.
       setActiveReturnId(result.id);
       setPaymentStep("sent");
 
       // 3. Send proposal message in chat
-      const proposalMsg = "💰 Proposition de récompense : " + amount.toLocaleString() + " FCFA.\n📦 Restitution initiée. Le retrouveur doit valider le montant.\n➡️ Voir le processus : /return/" + result.id;
+      const proposalMsg = "💰 Proposition de récompense : " + amount.toLocaleString() + " FCFA.\n📦 Restitution initiée. Poursuivons sur la page de collaboration.\n➡️ Voir le processus : /return/" + result.id;
       await conversationsApi.sendMessage(selectedConversation.id, proposalMsg);
 
       const updated = await conversationsApi.getById(selectedConversation.id);
@@ -704,17 +704,18 @@ function MessagesContent() {
     }
   };
 
-  const handleAcceptReward = async (returnId: number, amount: number) => {
+  const handleAcceptReward = async (returnId: number, _amount: number) => {
     setAcceptingReward(true);
     try {
-      await returnsApi.acceptReward(returnId, amount);
-      // Send confirmation message in chat
-      const msgContent = "✅ Récompense de " + amount.toLocaleString() + " FCFA acceptée ! \n📦 Montant mis en séquestre. \n➡️ Validez la collaboration : /return/" + returnId;
+      // Flow officiel (§27) : la page collaboration pilote la mise en relation,
+      // la proposition et le paiement. Le chat redirige simplement.
+      const msgContent = "✅ D'accord pour la récompense ! ➡️ Poursuivons sur la page de collaboration : /return/" + returnId;
       await conversationsApi.sendMessage(selectedConversation!.id, msgContent);
       // Refresh conversation
       const updated = await conversationsApi.getById(selectedConversation!.id);
       setSelectedConversation({ ...updated, messages: dedupMessages(updated.messages || []) });
       setConversations((prev) => prev.map((c) => c.id === updated.id ? updated : c));
+      router.push("/return/" + returnId);
     } catch (err: any) {
       console.error("Failed to accept reward:", err);
       alert(err.message || "Erreur lors de l'acceptation de la récompense");
@@ -1045,11 +1046,13 @@ function MessagesContent() {
                                         <button
                                           onClick={async () => {
                                             try {
-                                              await returnsApi.validate(returnId);
-                                              const msgContent = "\u2705 Collaboration validée ! Fixons un rendez-vous.";
+                                              // Flow officiel (§27) : la validation se fait
+                                              // sur la page collaboration, pas depuis le chat.
+                                              const msgContent = "\u2705 D'accord ! Poursuivons sur la page de collaboration : /return/" + returnId;
                                               await conversationsApi.sendMessage(selectedConversation!.id, msgContent);
                                               const updated = await conversationsApi.getById(selectedConversation!.id);
                                               setSelectedConversation({ ...updated, messages: dedupMessages(updated.messages || []) });
+                                              router.push("/return/" + returnId);
                                             } catch (err: any) {
                                               alert(err.message || "Erreur lors de la validation");
                                             }

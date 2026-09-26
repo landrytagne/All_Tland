@@ -91,12 +91,20 @@ export type {
 export {
   returnsApi,
   adminDisputesApi,
+  adminCollaborationsApi,
 } from "./api-returns";
 
 export type {
   ReturnRequestResponse,
   RatingResponse,
   DisputeStats,
+  TimelineEvent,
+  LocationShareResponse,
+  CollaborationDetail,
+  EscrowInfo,
+  ChatMessage,
+  ProofInfo,
+  LiveLocation,
 } from "./api-returns";
 
 // Proof & Negotiation

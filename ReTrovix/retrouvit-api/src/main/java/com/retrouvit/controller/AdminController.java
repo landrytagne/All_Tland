@@ -180,12 +180,33 @@ public class AdminController {
         return ResponseEntity.ok(returnRequestService.getDisputeStats());
     }
 
+    // ─── §24 : Vue administrateur des collaborations ─────────────
+
+    @GetMapping("/collaborations")
+    @Operation(summary = "Lister toutes les collaborations de restitution (§24)",
+            description = "Filtrable par statut (?status=ESCROW_FUNDED).")
+    public ResponseEntity<List<ReturnRequestResponse>> getAllCollaborations(
+            @RequestParam(required = false) String status
+    ) {
+        return ResponseEntity.ok(returnRequestService.getAllCollaborations(status));
+    }
+
+    @GetMapping("/collaborations/{id}")
+    @Operation(summary = "Détail d'une collaboration avec tous les onglets d'audit (§24)",
+            description = "Historique, Paiement (escrow), Messages, Preuves, Localisation.")
+    public ResponseEntity<CollaborationAdminDetail> getCollaborationDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(returnRequestService.getCollaborationForAdmin(id));
+    }
+
     @PostMapping("/disputes/{id}/resolve")
     @Operation(summary = "Résoudre un litige")
     public ResponseEntity<ReturnRequestResponse> resolveDispute(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request
+            @RequestBody Map<String, Object> request
     ) {
-        return ResponseEntity.ok(returnRequestService.resolveDispute(id, request.get("resolution")));
+        String resolution = (String) request.get("resolution");
+        Boolean refundForLoser = request.get("refundForLoser") != null
+                ? Boolean.valueOf(request.get("refundForLoser").toString()) : null;
+        return ResponseEntity.ok(returnRequestService.resolveDispute(id, resolution, refundForLoser));
     }
 }

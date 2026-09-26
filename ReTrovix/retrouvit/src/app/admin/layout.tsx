@@ -43,6 +43,7 @@ const sidebarItems = [
   { href: "/admin/reports", label: "Signalements", icon: AlertTriangle },
   { href: "/admin/certifications", label: "Certifications", icon: ShieldCheck },
   { href: "/admin/complaints", label: "Réclamations", icon: Headphones },
+  { href: "/admin/collaborations", label: "Collaborations", icon: MapPin },
   { href: "/admin/transactions", label: "Transactions", icon: CreditCard },
   { href: "/admin/messages", label: "Messages", icon: MessageCircle },
   { href: "/admin/categories", label: "Catégories", icon: Package },
