@@ -259,18 +259,11 @@ public class ReturnRequestController {
         return ResponseEntity.ok(returnRequestService.fileDispute(id, user.getId(), request.get("reason")));
     }
 
-    @PostMapping("/{id}/resolve-dispute")
-    @Operation(summary = "Trancher un litige (§23, admin)",
-            description = "refundForLoser=true → remboursement Chercheur ; refundForLoser=false → déblocage fonds Finder.")
-    public ResponseEntity<ReturnRequestResponse> resolveDispute(
-            @PathVariable Long id,
-            @RequestBody Map<String, Object> request
-    ) {
-        String resolution = (String) request.get("resolution");
-        Boolean refundForLoser = request.get("refundForLoser") != null
-                ? Boolean.valueOf(request.get("refundForLoser").toString()) : null;
-        return ResponseEntity.ok(returnRequestService.resolveDispute(id, resolution, refundForLoser));
-    }
+    // SÉCURITÉ (audit C2) : POST /{id}/resolve-dispute a été SUPPRIMÉ de ce
+    // contrôleur — il était accessible à tout utilisateur authentifié
+    // (sous /api/returns/**) alors que l'arbitrage des litiges déclenche
+    // remboursement ou déblocage des fonds (§23). La seule entrée reste
+    // POST /api/admin/disputes/{id}/resolve (hasRole ADMIN via SecurityConfig).
 
     // ─── §21 : Évaluation ────────────────────────────────────
 

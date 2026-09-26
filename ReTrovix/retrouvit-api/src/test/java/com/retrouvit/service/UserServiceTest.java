@@ -48,6 +48,12 @@ class UserServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private OtpService otpService;
+
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private UserService userService;
 
@@ -95,8 +101,8 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("register — devrait créer un ADMIN si role = ADMIN")
-    void register_shouldCreateAdminWhenRequested() {
+    @DisplayName("register — ne doit JAMAIS créer un ADMIN même si role = ADMIN (audit C1)")
+    void register_shouldNeverCreateAdminEvenWhenRequested() {
         when(userRepository.existsByEmail("admin@retrouvit.com")).thenReturn(false);
         when(passwordEncoder.encode("admin123")).thenReturn("hashedAdmin");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -105,11 +111,14 @@ class UserServiceTest {
             return u;
         });
 
+        // Ancien comportement vulnérable : le rôle venait du client (escalade
+        // anonyme, confirmée par test réel lors de l'audit). Il est désormais
+        // systématiquement écrasé à USER.
         RegisterRequest request = new RegisterRequest("Admin", "admin@retrouvit.com", "admin123", "ADMIN");
         UserResponse response = userService.register(request);
 
-        assertThat(response.getRole()).isEqualTo("ADMIN");
-        verify(userRepository).save(argThat(u -> u.getRole() == Role.ADMIN));
+        assertThat(response.getRole()).isEqualTo("USER");
+        verify(userRepository).save(argThat(u -> u.getRole() == Role.USER));
     }
 
     @Test
