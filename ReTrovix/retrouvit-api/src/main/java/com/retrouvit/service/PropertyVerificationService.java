@@ -30,6 +30,7 @@ public class PropertyVerificationService {
     private final FoundObjectRepository foundObjectRepository;
     private final CollaborationEventRepository eventRepository;
     private final PasswordEncoder passwordEncoder;
+    private final VerificationAttemptService verificationAttemptService;
 
     /**
      * Vérifie la réponse du Chercheur à la question secrète.
@@ -63,12 +64,9 @@ public class PropertyVerificationService {
         }
 
         if (!passwordEncoder.matches(answer, found.getVerificationAnswerHash())) {
-            // Incrément dans une transaction indépendante : persiste malgré le rollback
-            request.setVerificationAttempts(request.getVerificationAttempts() + 1);
-            returnRequestRepository.save(request);
-            int remaining = MAX_ATTEMPTS - request.getVerificationAttempts();
-            eventRepository.save(toEvent(request, null, "VERIFICATION_FAILED",
-                    "Réponse incorrecte — " + Math.max(remaining, 0) + " tentative(s) restante(s)"));
+            // Incrément dans une transaction indépendante (REQUIRES_NEW) :
+            // persiste malgré le rollback de la transaction appelante.
+            int remaining = verificationAttemptService.recordFailedAttempt(request, MAX_ATTEMPTS);
             if (remaining <= 0) {
                 throw new IllegalArgumentException(
                         "Trop de tentatives — cette correspondance est bloquée pour vérification manuelle");

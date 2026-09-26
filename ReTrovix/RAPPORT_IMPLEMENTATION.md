@@ -2,13 +2,13 @@
 
 **Mise en conformité avec le cahier des charges technique v1.0 (Juillet 2026)**
 
-Date : 25 septembre 2026 · Projet : `ReTrovix/` (repo `All_Tland`, branche `main`)
+Date : 25-26 septembre 2026 · Projet : `ReTrovix/` (repo `All_Tland`, branche `main`)
 
 ---
 
 ## 1. Résumé exécutif
 
-Six chantiers ont été livrés, chacun sur sa branche, vérifié (tests + build + test d'intégration), mergé sur `main` et poussé. Le projet passe de **91 à 99 tests unitaires verts**, dispose désormais de **7 migrations Flyway** et couvre l'intégralité des écarts identifiés au départ, hormis les points explicitement différés (embeddings image, credentials Google réels, providers MoMo/Orange réels).
+Huit chantiers ont été livrés, chacun sur sa branche, vérifié (tests + build + test d'intégration), mergé sur `main` et poussé. Le projet passe de **91 à 127 tests unitaires verts**, dispose désormais de **9 migrations Flyway** et couvre l'intégralité des écarts identifiés au départ, hormis les points explicitement différés (embeddings image, credentials Google réels, providers MoMo/Orange réels).
 
 | Tâche | Branche | Statut | Vérification |
 |---|---|---|---|
@@ -19,8 +19,9 @@ Six chantiers ont été livrés, chacun sur sa branche, vérifié (tests + build
 | T3 — Matching CDC | `feature/matching-cdc` | ✅ Mergé + poussé | 13 tests moteur |
 | T4 — Paiements & wallet | `feature/payments-wallet` | ✅ Mergé + poussé | Retrait + validation finance via HTTP |
 | T2 — Google OAuth2 | `feature/google-oauth` | ✅ Mergé + poussé | Rejet propre sans credentials |
+| **T8 — Flow de restitution officiel** | `feature/restitution-flow` | ✅ Mergé + poussé | 122→127 tests · typecheck + build frontend OK |
 
-**Vérification finale globale** : 99/99 tests verts · typecheck + build production frontend OK · boot complet sur base vierge avec V1→V7 appliquées · Swagger accessible.
+**Vérification finale globale** : 127/127 tests verts · typecheck + build production frontend OK · boot sur base vierge avec V1→V9 appliquées · Swagger accessible.
 
 ---
 
@@ -95,6 +96,46 @@ Frontend :
 
 **Pour activer** (test différé validé en session) : créer des identifiants OAuth dans Google Cloud Console (`GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`), URI de redirection autorisée : `https://<votre-domaine>/auth/google/callback`.
 
+### T8 — Flow de restitution officiel (`feature/restitution-flow`)
+
+Implémentation de `RetrouvIt-Flow-Restitution.md` (version de référence), mergé sur `main` et poussé (commit `79cf54f`).
+
+**Machine d'états §25 (migration V8)**
+- `ReturnStatus` réécrit : MATCH_FOUND → VERIFICATION_PENDING → VERIFIED → CONNECTION_PENDING → CHAT_ACTIVE → PROPOSAL_PENDING → PAYMENT_PENDING → ESCROW_FUNDED → MISSION_READY → MISSION_STARTED → MEETING_IN_PROGRESS → HANDOVER_PENDING → COMPLETED + sorties parallèles (REJECTED, PAYMENT_FAILED, DISPUTED, UNDER_REVIEW, RESOLVED, REFUNDED, CANCELLED).
+- Conversion SQL des statuts legacy + nouvelle contrainte CHECK.
+- Timeline d'audit `collaboration_events` (§24) : chaque transition est tracée avec acteur, description et métadonnées.
+
+**Vérification de propriété §2 (migration V8)**
+- Question de vérification sur `found_objects` : réponse stockée **uniquement hachée (bcrypt)**, jamais en clair ; saisie à la publication (DTO + service).
+- `PropertyVerificationService` : succès → VERIFIED ; échec → compteur incrémenté ; **5 échecs → correspondance bloquée**.
+- Le système de preuves (`ProofService`) reste le mode alternatif quand aucune question n'est définie.
+
+**Paiement, mission, double confirmation (§9-19)**
+- Proposition unique du Finder : montant + date + heure + lieu en une action (§6) ; contre-proposition/refus sans créer de nouveau dossier (§8).
+- Paiement séquestre idempotent (anti double-débit), wallet débité, escrow créé (§9-10).
+- « Commencer la mission » : transition unique, Finder simplement informé — pas de seconde validation (§12).
+- Double confirmation obligatoire (remise Finder + réception Chercheur) → **libération AUTOMATIQUE des fonds** (§19) : commission lue depuis `PlatformSettings` (paramétrable back-office, jamais codée en dur), wallet Finder crédité, escrow clôturé, objets marqués RETURNED.
+- Litiges (§22-23) : gel de l'escrow, arbitrage back-office avec remboursement Chercheur ou déblocage Finder selon la décision ; évaluation 1-5 étoiles avec impact trust score (§21).
+
+**Partage de position §13/§20 (migration V9)**
+- Table `collaboration_locations` (1 ligne par utilisateur/collaboration, upsert).
+- **Fenêtre de confidentialité stricte** : enregistrement/lecture uniquement entre MISSION_STARTED et HANDOVER_PENDING ; refus hors fenêtre ; l'admin peut consulter (§24).
+- **Purge automatique §20** : positions supprimées à la libération des fonds et au remboursement après litige + événement d'audit.
+- Endpoints : `POST /api/returns/{id}/location`, `GET .../location/peer`, `GET .../location/me`.
+- Frontend : composant opt-in `LocationSharingCard` — géolocalisation navigateur, polling peer 15 s, distance haversine, lien OpenStreetMap ; ne rend rien hors fenêtre.
+
+**Vue administrateur §24**
+- `GET /api/admin/collaborations` (filtrable par statut) + `GET /api/admin/collaborations/{id}`.
+- Page `/admin/collaborations` : tableau, filtres, recherche, dialog à onglets **Historique | Paiement | Localisation | Messages | Preuves** (conversation liée pour arbitrage §5, preuves avec photos).
+
+**Cohérence frontend (principe UX §27)**
+- Page collaboration unique `return/[id]` : une seule action contextuelle par état, barre de progression.
+- Messagerie remise en cohérence : suppression de l'ancien flow parallèle (`proposeReward`/`acceptReward`/`validate` contredisant la machine d'états) — le chat annonce et redirige vers la page collaboration, seule autoritaire.
+
+**Bug corrigé au passage** : le compteur d'échecs de vérification §2 était annulé par le rollback de la transaction de vérification (commentaire affirmait à tort une transaction indépendante) — nouveau `VerificationAttemptService` avec `@Transactional(REQUIRES_NEW)`, incrément commité indépendamment ; contrat verrouillé par un test dédié. Même mécanisme que l'OTP (T1).
+
+**Vérification** : 25 tests de workflow (happy path, sorties parallèles, négatifs, idempotence, commission) + 10 tests partage de position (fenêtre, masquage, purge, garde-fous) + 5 tests compteur persistant ; typecheck + build production frontend OK (`/admin/collaborations` générée).
+
 ---
 
 ## 3. Écarts assumés et points différés
@@ -117,17 +158,21 @@ Frontend :
 | V5 | score_breakdown sur matches |
 | V6 | withdrawal_requests |
 | V7 | Google OAuth (password nullable, auth_provider) |
+| V8 | Flow restitution — conversion statuts §25, question de vérification, collaboration_events |
+| V9 | collaboration_locations — partage de position §13/§20 |
 
 ## 5. Ce qu'il reste hors périmètre de cette session
 
 - **Optionnel (CDC)** : 2FA par SMS (`phone` vérifié), session management par appareil côté UI (l'API existe), export PDF/Excel des rapports admin, service email/OTP via SMTP transactionnel de production.
 - **Tests E2E Playwright** (§12) et tests de charge k6 — non couverts par cette session.
 - **Choix de l'hébergeur** et RTO/RPO (§14.2) — décision métier.
+- **Map interactive embarquée** : le partage de position §13 affiche coordonnées + lien OpenStreetMap ; une carte Leaflet/Mapbox dans la page est une amélioration UI possible.
+- **Notifications push temps réel sur transition de collaboration** : le polling 15 s du partage de position peut être remplacé par un canal WebSocket dédié.
 
 ## 6. Commandes utiles
 
 ```bash
-# Backend — tests (99)
+# Backend — tests (127)
 cd ReTrovix/retrouvit-api && mvn test
 
 # Frontend — typecheck + build
@@ -140,4 +185,4 @@ docker compose up -d --build
 
 ---
 
-*Rapport généré le 25 septembre 2026 — implémentation assistée par Codebuff.*
+*Rapport mis à jour le 26 septembre 2026 — implémentation assistée par Codebuff.*
