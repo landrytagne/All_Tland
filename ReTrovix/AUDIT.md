@@ -1,20 +1,24 @@
 # AUDIT TECHNIQUE & SÉCURITÉ — RetrouvIt
 
-**Date : 26 septembre 2026** · Périmètre : `retrouvit-api` (Spring Boot 3.3/Java 21), `retrouvit` (Next.js), infra Docker, CI · Confrontation au cahier des charges et à `RetrouvIt-Flow-Restitution.md`
+**Date : 26 septembre 2026 (mis à jour après correctifs)** · Périmètre : `retrouvit-api` (Spring Boot 3.3/Java 21), `retrouvit` (Next.js), infra Docker, CI · Confrontation au cahier des charges et à `RetrouvIt-Flow-Restitution.md`
+
+> **Suivi des correctifs — session du 26/09 :** ✅ C1, C2, C3 (critiques), M1, M2, m2 (majeurs/mineur) **corrigés, mergés sur `main`, poussés et vérifiés dynamiquement**. 142 tests verts, migration V10.
 
 ---
 
 ## 1. Verdict global
 
-> **⚠️ NON PRÊT POUR LA PRODUCTION.** Le produit est fonctionnellement très complet (flow de restitution validé E2E à 100 % — 38/38, 127 tests verts), mais **2 vulnérabilités critiques**, **1 majeure**, plusieurs lacunes de robustesse (concurrence, rate limiting) et d'exploitation (backups, monitoring) l'interdisent en l'état.
+> **⚠️ NON PRÊT POUR LA PRODUCTION** — mais **toutes les vulnérabilités critiques sont désormais corrigées**. Restent des points majeurs (M3-M7 : concurrence money, dispatcher webhook, CORS, secrets, provider simulé) et d'exploitation (backups, TLS, monitoring) à traiter avant mise en ligne.
 
-**L'inventaire** : 29 contrôleurs, 40 services, 52 entités, 31 repositories, 9 migrations Flyway, 67 pages frontend, 127 tests backend. Tous les flux majeurs du CDC existent : auth (OTP 2FA, Google OAuth, sessions), matching, restitution complète (escrow/mission/confirmation/litiges/évaluations), wallet/paiements/retraits avec validation finance, certifications, admin back-office étendu, notifications WebSocket, modération, signalements, anti-contournement (code présent).
+**L'inventaire** : 29 contrôleurs, 40 services, 52 entités, 31 repositories, 10 migrations Flyway, 67 pages frontend, **142 tests backend**. Tous les flux majeurs du CDC existent : auth (OTP 2FA, Google OAuth, sessions), matching, restitution complète (escrow/mission/confirmation/litiges/évaluations), wallet/paiements/retraits avec validation finance, certifications, admin back-office étendu, notifications WebSocket, modération, signalements, anti-contournement (code présent).
 
 ---
 
 ## 2. 🔴 Critique — à corriger AVANT tout déploiement
 
-### C1. Escalade de privilèges ADMIN par n'importe qui (confirmée par test réel)
+> **✅ TOUS CORRIGÉS** (merge `2736624`, vérifié dynamiquement : attaque rejouée après fix → échec).
+
+### C1. Escalade de privilèges ADMIN par n'importe qui (confirmée par test réel) — ✅ CORRIGÉ
 `POST /api/users` est **public** (`permitAll`) et `UserService.register()` accepte `"role":"ADMIN"` du client. Test effectué sur la stack locale :
 
 ```bash
@@ -24,17 +28,23 @@ curl -X POST /api/users -d '{"name":"Hack Test","email":"...","password":"...","
 
 L'attaquant contrôle l'email fourni → reçoit le code OTP → obtient des tokens **ADMIN** → accès total : `/api/admin/**`, `/api/finance/**` (validation des retraits !), `/api/returns/{id}/resolve-dispute` (arbitrage des litiges et des fonds !).
 
-**Correctif** : forcer `Role.USER` dans `register()` (ignorer `request.getRole()`), et/ou exiger le rôle admin pour créer un admin. Ajouter un test qui échoue si `role=ADMIN` est accepté.
+**Correctif appliqué** : `UserService.register()` force `Role.USER` (rôle client ignoré). Le test existant qui vérifiait le comportement vulnérable est remplacé par son inverse + tests de variantes de casse. **Re-vérification dynamique post-fix** : `POST /api/users` avec `"role":"ADMIN"` → compte créé en USER.
 
-### C2. Arbitrage des litiges accessible aux utilisateurs
+### C2. Arbitrage des litiges accessible aux utilisateurs — ✅ CORRIGÉ
 `POST /api/returns/{id}/resolve-dispute` (ReturnRequestController) est sous `/api/returns/**` = n'importe quel utilisateur **authentifié** peut trancher un litige et déclencher remboursement ou déblocage des fonds. Le doublon admin existe (`/api/admin/disputes/{id}/resolve`) mais la porte non protégée aussi.
 
-**Correctif** : supprimer l'endpoint de `ReturnRequestController` (le garder admin-only dans AdminController) ou ajouter `@PreAuthorize("hasRole('ADMIN')")`.
+**Correctif appliqué** : endpoint supprimé de `ReturnRequestController` ; seule entrée `POST /api/admin/disputes/{id}/resolve` (ADMIN). Vérifié dynamiquement : appel avec token utilisateur valide → 404 ; route admin sans token → 403.
 
-### C3 (majeur, proche critique). Tokens de reset password en clair dans les logs
+### C3 (majeur, proche critique). Tokens de reset password en clair dans les logs — ✅ CORRIGÉ
 `UserService` ligne 288 : `log.info("Password reset token for {}: {}", email, token)` — le jeton permettant de changer le mot de passe de n'importe quel compte finit dans les logs (Sentry est branché). `POST /api/auth/forgot-password` est public.
 
-**Correctif** : supprimer ce log ; le flux email existe déjà (EmailService).
+**Correctif appliqué** : log supprimé ; nouveau `EmailService.sendPasswordResetEmail()` (HTML, lien valable 1 h). Vérifié dynamiquement : zéro occurrence du token dans les logs, email reçu dans MailHog.
+
+---
+
+## 3. 🟠 Majeur
+
+> ✅ **M1 et M2 corrigés** (merge `eefb480`, vérifiés dynamiquement) ; M3-M7 restants.
 
 ---
 
@@ -42,8 +52,8 @@ L'attaquant contrôle l'email fourni → reçoit le code OTP → obtient des tok
 
 | # | Constat | Impact | Recommandation |
 |---|---|---|---|
-| M1 | **Aucun rate limiting** (pas de Bucket4j/filtre) sur endpoints publics : login, OTP request, forgot-password, register | Brute-force mots de passe, bombing email, énumération | Rate limit par IP+email (5/min OTP, 10/min login), réponse 429 |
-| M2 | **Pas de verrouillage de compte** après N échecs de login (contrairement aux OTP : 5 essais ✓) | Brute-force illimité d'un compte | Compteur d'échecs + verrouillage temporaire |
+| M1 | ✅ **CORRIGÉ** — `RateLimitFilter` + `RateLimitService` : fenêtre glissante en mémoire par IP+route, auth 10/min, OTP 5/min, 429 + Retry-After, carte bornée (purge 50k). Vérifié dynamiquement : 15 logins → 401×10 puis 429×5 | | |
+| M2 | ✅ **CORRIGÉ** — `AccountLockoutService` + migration V10 : 5 échecs → verrou 15 min, compteur persistant REQUIRES_NEW, réinitialisation au succès, verrou vérifié avant auth, flux otp/verify protégé. Vérifié dynamiquement : verrou en base + refus du bon mot de passe pendant le verrou + réinitialisation | | |
 | M3 | **CORS hardcodé** : `setAllowedOrigins` scanne les interfaces réseau et ajoute toutes les IPs LAN ; pas d'env `ALLOWED_ORIGINS` | Config non contrôlable en prod ; origine LAN arbitraire autorisée | Lire les origines depuis l'env, retirer le scan réseau, `allowCredentials(true)` exige des origines explicites |
 | M4 | **Pas de verrou de concurrence** sur les opérations money : aucun `@Version` (optimiste), aucun `@Lock(PESSIMISTIC)`, aucun `UPDATE ... WHERE balance >= X` | Deux paiements/retraits simultanés peuvent passer des vérifications de solde et produire un solde négatif | `@Version` sur User/Escrow ou débit atomique en base (`UPDATE users SET wallet_balance = wallet_balance - ? WHERE id=? AND wallet_balance >= ?` et vérifier rows affected) |
 | M5 | **Webhook paiement : le dispatcher est un TODO** — signature vérifiée ✓ mais le payload n'est traité par aucun service (`log.info` puis `received`) | Les callbacks réels MoMo/Orange ne mettront à jour aucune transaction | Implémenter le dispatch `payment.success` / `withdrawal.completed` avant le branchement provider réel |
@@ -57,7 +67,7 @@ L'attaquant contrôle l'email fourni → reçoit le code OTP → obtient des tok
 | # | Constat | Recommandation |
 |---|---|---|
 | m1 | Aucune validation Bean sur les contrôleurs qui prennent `Map<String,Object>` (ReturnRequestController notamment) : types et champs non contraints | DTOs typés avec `@Valid` |
-| m2 | Utilisateurs **bannis** : `banned=true` est bloqué nulle part au login ni dans le filtre JWT (l'otp/verify vérifie `enabled` mais pas `banned`) ; seule la page frontend `auth/banned` existe | Refuser login/OTP si `banned` ; rejeter les tokens en filtro |
+| m2 | ✅ **CORRIGÉ** (avec M2) : les comptes bannis sont refusés au login et à l'otp/verify avec leur motif | (résolu) |
 | m3 | `MessageService.getConversation()` ne vérifie pas l'appartenance : un utilisateur authentifié peut **lire une conversation quelconque** en devinant l'id | Vérifier user1/user2 avant réponse |
 | m4 | `AntiCircumventionService` (détection contournement paiement) **n'est appelé nulle part** — code mort | Brancher sur l'envoi de messages |
 | m5 | Aucun index secondaire en migration (V1 généré sans index hors PK/FK implicites) ; `transactions(user_id)`, `messages(conversation_id, created_at)` vont scanner en grand volume | Index couvrants sur tables chaudes |
@@ -77,8 +87,9 @@ L'attaquant contrôle l'email fourni → reçoit le code OTP → obtient des tok
 - **OTP 2FA** : haché bcrypt, TTL 5 min, usage unique, 5 tentatives **persistantes** (REQUIRES_NEW, bug corrigé), anti-énumération.
 - **Refresh tokens** : rotation + révocation de tous les tokens en cas de **reuse détecté** ; refresh refusé utilisé comme access.
 - **Webhook** : signature HMAC comparée à temps constant, ordre des matchers correct.
-- **Flyway** : baseline + validate, V1→V9 appliquées proprement sur base vierge (vérifié).
+- **Flyway** : baseline + validate, V1→V10 appliquées proprement sur base vierge (vérifié).
 - **CI** : tests et typecheck bloquants, concurrence, artifacts.
+- **Anti brute-force (ajouté)** : rate limiting par IP+route (429+Retry-After), verrouillage de compte après 5 échecs (compteur persistant REQUIRES_NEW), comptes bannis refusés à l'auth.
 - **Uploads** : type + extension whitelistés, noms générés, tailles bornées.
 - **Anti-enumeration** sur OTP request ; frontend sans XSS par innerHTML ; guards admin côté client.
 
@@ -91,7 +102,7 @@ L'attaquant contrôle l'email fourni → reçoit le code OTP → obtient des tok
 | TLS/HTTPS | Non configuré (compose expose HTTP) | Reverse proxy (Caddy/Nginx) + HSTS avant prod |
 | Backups | **Aucun** (pas de pg_dump planifié) | Cron `pg_dump` chiffré + test de restauration — **bloquant prod** |
 | Monitoring | Sentry présent ✓ ; pas d'actuator/healthcheck API dans le compose (healthcheck DB ✓) | `spring-boot-starter-actuator` + healthchecks compose |
-| Scalabilité API | Stateless ✓ (JWT) → scale-out possible ; mais WebSocket STOMP en mémoire et rate limiting absent | Sticky sessions/SIFS ou broker externe (Redis) si multi-instances |
+| Scalabilité API | Stateless ✓ (JWT) → scale-out possible ; WebSocket STOMP en mémoire ; rate limiting en mémoire (mono-instance) | Sticky sessions ou bucket distribué (Redis) si multi-instances |
 | DB | Pas d'index secondaires (m5), pas de pool tuning, pas de read replica | Index d'abord |
 | Redis | Absent (assumé : OTP/limites en PG) | Acceptable au volume actuel ; revisiter à l'échelle |
 | File storage | Disque local (volume `uploads`) | S3/MinIO si multi-instances |
@@ -118,11 +129,11 @@ L'attaquant contrôle l'email fourni → reçoit le code OTP → obtient des tok
 
 ## 8. Plan d'action priorisé
 
-1. **Aujourd'hui** : C1 (forcer USER à l'inscription + test), C2 (fermer resolve-dispute), C3 (supprimer le log du reset token) — ~1 h, fait sur branche dédiée.
-2. **Cette semaine** : M1 rate limiting, M2 verrouillage compte, M4 verrous de concurrence sur wallet/escrow, M6 secrets (fail-fast), m2 bannis, m3 conversation.
+1. ~~**Aujourd'hui** : C1, C2, C3~~ — ✅ **FAIT** (merges `2736624`, poussés).
+2. ~~**M1 rate limiting, M2 verrouillage compte, m2 bannis**~~ — ✅ **FAIT** (merge `eefb480`, migration V10, 142 tests verts). **Reste cette semaine** : M4 verrous de concurrence sur wallet/escrow, M6 secrets (fail-fast), m3 conversation.
 3. **Avant prod** : M5 dispatcher webhook, M7 branchement provider réel (ou assumer l'économie simulée), backups automatiques + restauration testée, TLS, actuator, désactiver Swagger prod.
 4. **Ensuite** : Playwright/k6, RGPD, index DB, MinIO, broker WS, pagination systématique.
 
 ---
 
-*Audit réalisé par analyse statique du code + tests dynamiques sur la stack Docker locale (dont tentative d'escalade de privilèges — réussie — et nettoyage des comptes de test créés).*
+*Audit réalisé par analyse statique du code + tests dynamiques sur la stack Docker locale (dont tentative d'escalade de privilèges — réussie, puis rejouée après correctif — bloquée — avec nettoyage des comptes de test).*
