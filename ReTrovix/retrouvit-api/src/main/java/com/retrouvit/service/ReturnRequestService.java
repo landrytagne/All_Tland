@@ -431,9 +431,14 @@ public class ReturnRequestService {
                             + " XAF). Rechargez votre portefeuille.");
         }
 
-        // Débiter le wallet du Chercheur
-        buyer.setWalletBalance(buyer.getWalletBalance() - amount);
-        userRepository.save(buyer);
+        // AUDIT M4 : débit ATOMIQUE — la vérification applicative ci-dessus
+        // sert au message d'erreur ; la garantie d'intégrité vient de la
+        // condition SQL (rows affected = 0 → un paiement concurrent a déjà
+        // consommé le solde).
+        if (userRepository.debitWalletAtomically(buyer.getId(), amount) == 0) {
+            throw new IllegalArgumentException(
+                    "Solde insuffisant — une autre opération a peut-être consommé votre solde.");
+        }
 
         // Créer l'escrow
         Escrow escrow = Escrow.builder()
@@ -684,10 +689,9 @@ public class ReturnRequestService {
         request.setPlatformFee(platformFee);
         request.setPaymentAmount(finderPayment);
 
-        // Crédit du wallet Finder
+        // Crédit du wallet Finder (atomique, audit M4)
         User finder = request.getFinder();
-        finder.setWalletBalance(finder.getWalletBalance() + finderPayment);
-        userRepository.save(finder);
+        userRepository.creditWalletAtomically(finder.getId(), finderPayment);
 
         // Transaction
         transactionRepository.save(Transaction.builder()
@@ -854,8 +858,7 @@ public class ReturnRequestService {
                     escrowRepository.save(escrow);
 
                     User buyer = request.getLoser();
-                    buyer.setWalletBalance(buyer.getWalletBalance() + escrow.getAmount());
-                    userRepository.save(buyer);
+                    userRepository.creditWalletAtomically(buyer.getId(), escrow.getAmount());
 
                     transactionRepository.save(Transaction.builder()
                             .user(buyer)

@@ -62,8 +62,9 @@ public class TransactionService {
     public void deposit(Long userId, Long amount) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
-        user.setWalletBalance(user.getWalletBalance() + amount);
-        userRepository.save(user);
+        // AUDIT M4 : crédit atomique (plus de read-modify-write en course)
+        userRepository.creditWalletAtomically(userId, amount);
+        userRepository.findById(userId).ifPresent(u -> u.getWalletBalance()); // charge l'état frais si utilisé ensuite
     }
 
     private TransactionResponse toResponse(Transaction tx) {

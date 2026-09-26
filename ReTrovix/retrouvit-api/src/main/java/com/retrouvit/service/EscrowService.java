@@ -151,10 +151,9 @@ public class EscrowService {
         escrow.setProgress(100);
         escrow.setCompletedAt(LocalDateTime.now());
 
-        // Créditer le wallet du trouveur
+        // Créditer le wallet du trouveur (atomique, audit M4)
         User seller = escrow.getSeller();
-        seller.setWalletBalance(seller.getWalletBalance() + escrow.getAmount());
-        userRepository.save(seller);
+        userRepository.creditWalletAtomically(seller.getId(), escrow.getAmount());
 
         Escrow saved = escrowRepository.save(escrow);
 
@@ -190,10 +189,9 @@ public class EscrowService {
         escrow.setProgress(0);
         escrow.setCompletedAt(LocalDateTime.now());
 
-        // Créditer le wallet du propriétaire
+        // Créditer le wallet du propriétaire (atomique, audit M4)
         User buyer = escrow.getBuyer();
-        buyer.setWalletBalance(buyer.getWalletBalance() + escrow.getAmount());
-        userRepository.save(buyer);
+        userRepository.creditWalletAtomically(buyer.getId(), escrow.getAmount());
 
         Escrow saved = escrowRepository.save(escrow);
 
