@@ -9,6 +9,7 @@ import com.retrouvit.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class UserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final OtpService otpService;
     private final EmailService emailService;
+    private final AccountLockoutService accountLockoutService;
 
     public AuthResponse login(AuthRequest request) {
         authenticationManager.authenticate(
@@ -50,12 +52,38 @@ public class UserService {
      * aucun token n'est émis tant que le code n'est pas vérifié (CDC §6.1).
      */
     public AuthResponse login(AuthRequest request, String userAgent, String ipAddress) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+        User user = userRepository.findByEmail(request.getEmail().toLowerCase()).orElse(null);
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
+        // Audit M2 : verrou anti brute-force — vérifié AVANT l'authentification
+        if (user != null && accountLockoutService.isLocked(user)) {
+            throw new IllegalArgumentException(
+                    "Compte temporairement verrouillé après trop de tentatives — réessayez dans "
+                            + accountLockoutService.minutesRemaining(user) + " minute(s)");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (BadCredentialsException e) {
+            // Audit M2 : compteur d'échecs persistant (transaction indépendante)
+            if (user != null) {
+                accountLockoutService.recordFailedAttempt(user);
+            }
+            throw e;
+        }
+
+        if (user == null) {
+            throw new ResourceNotFoundException("Utilisateur non trouvé");
+        }
+
+        // Audit m2 : un compte banni ne peut plus se connecter
+        if (Boolean.TRUE.equals(user.getBanned())) {
+            throw new IllegalArgumentException("Ce compte a été suspendu." +
+                    (user.getBanReason() != null ? " Motif : " + user.getBanReason() : ""));
+        }
+
+        accountLockoutService.recordSuccessfulLogin(user);
 
         if (!Boolean.TRUE.equals(user.getEnabled())) {
             throw new IllegalArgumentException("Ce compte n'est pas activé — vérifiez votre email (code d'activation)");

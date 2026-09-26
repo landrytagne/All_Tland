@@ -91,6 +91,15 @@ public class User {
 
     private LocalDateTime bannedAt;
 
+    /** Échecs de connexion consécutifs — verrouillage après 5 (audit M2). */
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private Integer failedLoginAttempts = 0;
+
+    /** Verrou actif jusqu'à cette date (null = jamais verrouillé). */
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

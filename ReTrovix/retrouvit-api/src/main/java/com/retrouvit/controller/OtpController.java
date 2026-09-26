@@ -35,6 +35,7 @@ public class OtpController {
     private final UserService userService;
     private final UserRepository userRepository;
     private final RegistrationFlowService registrationFlowService;
+    private final com.retrouvit.service.AccountLockoutService accountLockoutService;
 
     /**
      * Demande d'un OTP de login pour un compte existant.
@@ -77,6 +78,17 @@ public class OtpController {
                 .orElseThrow(() -> new IllegalArgumentException("Email ou code invalide"));
         if (!Boolean.TRUE.equals(user.getEnabled())) {
             throw new IllegalArgumentException("Ce compte n'est pas activé — utilisez le lien d'inscription");
+        }
+
+        // Audit M2/m2 : le verrou et la suspension s'appliquent aussi au flux OTP
+        if (accountLockoutService.isLocked(user)) {
+            throw new IllegalArgumentException(
+                    "Compte temporairement verrouillé après trop de tentatives — réessayez dans "
+                            + accountLockoutService.minutesRemaining(user) + " minute(s)");
+        }
+        if (Boolean.TRUE.equals(user.getBanned())) {
+            throw new IllegalArgumentException("Ce compte a été suspendu." +
+                    (user.getBanReason() != null ? " Motif : " + user.getBanReason() : ""));
         }
 
         OtpCode otp = otpService.verifyOtp(email, code, "LOGIN");
