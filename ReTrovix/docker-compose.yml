@@ -14,7 +14,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5435:5432"  # 5432 hôte occupé par un autre projet — API locale : jdbc:postgresql://localhost:5435/retrouvit_db
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +31,7 @@ services:
     container_name: retrouvit-api
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8085:8080"  # 8080 hôte occupé — API : http://localhost:8085
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/retrouvit_db
       SPRING_DATASOURCE_USERNAME: postgres
@@ -64,7 +64,7 @@ services:
     container_name: retrouvit-web
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3005:3000"  # 3000 hôte occupé — Web : http://localhost:3005
     environment:
       NODE_ENV: production
     depends_on:
@@ -76,8 +76,11 @@ services:
     container_name: retrouvit-mail
     restart: unless-stopped
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI: http://localhost:8025
+      - "2025:1025"  # SMTP (1025 hôte occupé)
+      - "4025:8025"  # Web UI: http://localhost:4025
+
+# ⚠️ Ports hôte décalés (5435/8085/3005/2025/4025) car 5432/8080/3000/1025/8025
+# sont occupés par d'autres projets sur cette machine.
 
 volumes:
   pgdata:
