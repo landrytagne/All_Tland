@@ -70,10 +70,9 @@ public class ReconciliationService {
                 w.setStatus(com.retrouvit.entity.WithdrawalStatus.FAILED);
                 w.setFailureReason("Abandonné côté provider (réconciliation)");
                 withdrawalRepository.save(w);
-                // Recrédit l'utilisateur
+                // Recrédit l'utilisateur (atomique, audit M4)
                 var user = w.getUser();
-                user.setWalletBalance(user.getWalletBalance() + w.getAmount());
-                userRepository.save(user);
+                userRepository.creditWalletAtomically(user.getId(), w.getAmount());
                 transactionService.createTransaction(user.getId(), TransactionType.REFUND,
                         w.getAmount(), "Réconciliation : retrait " + w.getReference() + " abandonné — remboursement");
                 createReconciliationAlert(w.getReference(), w.getAmount(), user.getEmail());

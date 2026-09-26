@@ -17,11 +17,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("WithdrawalService — Tests unitaires (CDC §5.4/§8.2)")
 class WithdrawalServiceTest {
 
@@ -53,6 +57,25 @@ class WithdrawalServiceTest {
         user = User.builder()
                 .id(1L).name("Landry").email("landry@test.com").password("x")
                 .role(Role.USER).trustScore(50).walletBalance(500_000L).build();
+
+        // AUDIT M4 : les opérations wallet sont maintenant ATOMIQUES en base.
+        // On simule l'effet réel sur l'entité pour que les assertions de solde
+        // continuent de vérifier l'invariant (débit refuses si solde insuffisant).
+        when(userRepository.debitWalletAtomically(anyLong(), anyLong())).thenAnswer(inv -> {
+            Long uid = inv.getArgument(0);
+            Long amt = inv.getArgument(1);
+            if (!uid.equals(user.getId())) return 0;
+            if (user.getWalletBalance() < amt) return 0;
+            user.setWalletBalance(user.getWalletBalance() - amt);
+            return 1;
+        });
+        when(userRepository.creditWalletAtomically(anyLong(), anyLong())).thenAnswer(inv -> {
+            Long uid = inv.getArgument(0);
+            Long amt = inv.getArgument(1);
+            if (!uid.equals(user.getId())) return 0;
+            user.setWalletBalance(user.getWalletBalance() + amt);
+            return 1;
+        });
     }
 
     private void stubSave() {

@@ -73,10 +73,9 @@ public class PaymentService {
             payment.setCompletedAt(LocalDateTime.now());
             paymentRepository.save(payment);
 
-            // Credit user wallet
+            // Credit user wallet (atomique, audit M4)
             User user = payment.getUser();
-            user.setWalletBalance(user.getWalletBalance() + payment.getAmount());
-            userRepository.save(user);
+            userRepository.creditWalletAtomically(user.getId(), payment.getAmount());
 
             // Create corresponding transaction
             transactionService.createTransaction(

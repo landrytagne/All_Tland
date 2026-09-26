@@ -89,6 +89,25 @@ class ReturnRequestWorkflowTest {
         when(returnRequestRepository.save(any(ReturnRequest.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(platformSettingsService.getSettingAsInt("platform_fee_percent")).thenReturn(15);
+
+        // AUDIT M4 : les opérations wallet sont ATOMIQUES en base — on simule
+        // l'effet réel sur les entités pour que les assertions de solde
+        // vérifient toujours l'invariant.
+        when(userRepository.debitWalletAtomically(anyLong(), anyLong())).thenAnswer(inv -> {
+            Long uid = inv.getArgument(0);
+            Long amt = inv.getArgument(1);
+            User target = uid.equals(loser.getId()) ? loser : finder;
+            if (target.getWalletBalance() < amt) return 0;
+            target.setWalletBalance(target.getWalletBalance() - amt);
+            return 1;
+        });
+        when(userRepository.creditWalletAtomically(anyLong(), anyLong())).thenAnswer(inv -> {
+            Long uid = inv.getArgument(0);
+            Long amt = inv.getArgument(1);
+            User target = uid.equals(loser.getId()) ? loser : finder;
+            target.setWalletBalance(target.getWalletBalance() + amt);
+            return 1;
+        });
     }
 
     // ─── Helpers ─────────────────────────────────────────────

@@ -52,13 +52,12 @@ public class WithdrawalService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
-        if (user.getWalletBalance() < amount) {
+        // AUDIT M4 : débit ATOMIQUE en base — la condition WHERE
+        // wallet_balance >= amount garantit l'invariant solde >= 0 même
+        // si deux retraits partent simultanément (rows affected = 0 → refus).
+        if (userRepository.debitWalletAtomically(userId, amount) == 0) {
             throw new IllegalArgumentException("Solde insuffisant");
         }
-
-        // Débit immédiat — recrédité si échec/refus
-        user.setWalletBalance(user.getWalletBalance() - amount);
-        userRepository.save(user);
 
         WithdrawalRequest withdrawal = WithdrawalRequest.builder()
                 .user(user)
@@ -147,11 +146,10 @@ public class WithdrawalService {
                 .collect(Collectors.toList());
     }
 
-    /** Recrédite le solde et trace la transaction de remboursement. */
+    /** Recrédite le solde (atomique, audit M4) et trace la transaction de remboursement. */
     private void refundUser(WithdrawalRequest withdrawal, String description) {
         User user = withdrawal.getUser();
-        user.setWalletBalance(user.getWalletBalance() + withdrawal.getAmount());
-        userRepository.save(user);
+        userRepository.creditWalletAtomically(user.getId(), withdrawal.getAmount());
         transactionService.createTransaction(user.getId(),
                 TransactionType.REFUND, withdrawal.getAmount(), description);
     }
