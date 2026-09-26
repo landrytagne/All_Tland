@@ -32,6 +32,33 @@ public class EmailService {
     private String appName;
 
     /**
+     * Email de réinitialisation de mot de passe (audit C3) : le token est
+     * transmis PAR EMAIL et n'est plus jamais journalisé.
+     */
+    @Async
+    public void sendPasswordResetEmail(String to, String token) {
+        try {
+            String link = appUrl + "/auth/forgot-password?token=" + token;
+            String html = """
+                    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">
+                      <h2 style="color:#0d6efd">Réinitialisation de votre mot de passe</h2>
+                      <p>Bonjour,</p>
+                      <p>Vous avez demandé la réinitialisation de votre mot de passe %s.</p>
+                      <p>Ce lien est valable <b>1 heure</b> et à usage unique :</p>
+                      <p style="text-align:center;margin:24px 0">
+                        <a href="%s" style="background:#0d6efd;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Réinitialiser mon mot de passe</a>
+                      </p>
+                      <p style="font-size:13px;color:#666">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email — votre mot de passe reste inchangé.</p>
+                    </div>
+                    """.formatted(appName, link);
+            sendHtmlEmail(to, "🔑 Réinitialisation de votre mot de passe — " + appName, html);
+            log.info("Password reset email sent to {}", to);
+        } catch (Exception e) {
+            log.error("Failed to send password reset email to {}: {}", to, e.getMessage());
+        }
+    }
+
+    /**
      * Send a critical alert email to all admin users.
      * Runs async to not block the alert scheduler.
      */

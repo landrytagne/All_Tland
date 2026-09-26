@@ -31,6 +31,7 @@ public class UserService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final OtpService otpService;
+    private final EmailService emailService;
 
     public AuthResponse login(AuthRequest request) {
         authenticationManager.authenticate(
@@ -216,14 +217,17 @@ public class UserService {
             throw new IllegalArgumentException("Un compte avec cet email existe déjà");
         }
 
-        Role role = request.getRole() != null && request.getRole().equals("ADMIN")
-                ? Role.ADMIN : Role.USER;
-
+        // SÉCURITÉ (audit C1) : le rôle ne doit JAMAIS venir du client.
+        // L'ancien code acceptait request.getRole()=="ADMIN" — escalade de
+        // privilèges anonyme (confirmée par test réel). Seule la création
+        // d'un admin passe par AdminService ou le DataSeeder.
+        // Le champ role du DTO reste accepté pour compatibilité de schéma
+        // mais est systématiquement ignoré et écrasé à USER.
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(role)
+                .role(Role.USER)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -284,8 +288,10 @@ public class UserService {
 
         passwordResetTokenRepository.save(resetToken);
 
-        // In production, send email here. For now, log the token.
-        log.info("Password reset token for {}: {}", email, token);
+        // SÉCURITÉ (audit C3) : le token de réinitialisation n'est plus
+        // journalisé — sa fuite dans les logs permettait de prendre le
+        // contrôle de n'importe quel compte via forgot-password (public).
+        emailService.sendPasswordResetEmail(email, token);
 
         return token;
     }
